@@ -1,10 +1,12 @@
 # Binaries and Modules
 
-## Binaries
+## SDK Libraries
 
-The program links the first seven libraries through the `rex::sdk` CMake target. `rex::Init` loads the others by name at runtime, and loads `rexxam`, `rexxbdm` and `rexkernel` as modules. See [Introduction](../index.md#runtime) for how they fit together.
+On this page, an [SDK module](../reference/glossary.md#sdk-module) is an SDK library that serves interfaces, which `rex::Init` loads at runtime. It is not a [DLL module](../reference/glossary.md#dll-module), which is a XEX of the game. A library here is a compiled file of the SDK, not a XEX that codegen recompiles.
 
-| Binary | Purpose |
+The program links the first seven libraries of the table through the `rex::sdk` CMake target. Three of them, `rexxam`, `rexxbdm` and `rexkernel`, are also system libraries. `rex::Init` loads these three from the program itself, not from files, in the order of [System Libraries](#system-libraries). It loads the remaining libraries from files by name at runtime. See [Introduction](../index.md#runtime) for how they fit together.
+
+| Library | Purpose |
 |---|---|
 | `rexbase` | Provides settings, logging, `rex::Init`, ImGui and the platform layer. |
 | `rexppc` | Provides what recompiled code needs at runtime: the routing of the MMIO blocks, the registry of recompiled code, exception handling, and the guest stack and detour frames. |
@@ -18,19 +20,21 @@ The program links the first seven libraries through the `rex::sdk` CMake target.
 | Driver modules | Provide the drivers. `rex::Init` loads the ones that the settings select. |
 | `rexglue` | Creates projects and recompiles the XEX. It is a separate program and never loads into the program it builds. |
 
+The driver modules in the next section are also SDK modules.
+
 ## Driver Modules
 
 See [Modules and Interfaces](../app/modules.md#selecting-drivers) for how a system selects a driver.
 
 | Module | Driver | Purpose |
 |---|---|---|
-| `rexui-sdl3` | `sdl3` | Creates the window and the UI through SDL3. |
+| `rexui-sdl3` | `sdl3` | Creates the window and delivers its events, message boxes and file dialogs through SDL3. |
 | `rexhid-sdl3` | `sdl3` | Reads input devices through SDL3, on every platform. |
 | `rexhid-xinput` | `xinput` | Reads controllers through XInput. Windows only. |
 | `rexapu-sdl3` | `sdl3` | Plays audio through SDL3. |
 | `rexgpu-xenos-d3d12` | `d3d12`, family `xenos` | Renders graphics through Direct3D 12. Windows only. |
 | `rexgpu-xenos-vulkan` | `vulkan`, family `xenos` | Renders graphics through Vulkan. |
-| `rexgpu-xenos-null` | `null`, family `xenos` | Processes the GPU commands of the title and draws nothing, so a title runs without a host GPU. |
+| `rexgpu-xenos-null` | `null`, family `xenos` | Processes the GPU commands of the game and draws nothing, so a game runs without a host GPU. |
 
 ## Graphics Driver Values
 
@@ -46,7 +50,7 @@ See [Graphics](../devices/graphics.md#drivers) for the `gpu.driver` setting.
 
 ## System Libraries
 
-The eight libraries that an `App` loads, in load order. A module can only connect when the SDK or an earlier module serves every interface it requires. See [Modules and Interfaces](../app/modules.md#system-libraries) for the load order.
+`rex::Init` loads these eight libraries, from files or from the program for the three linked ones, in the order of the table. A library starts only when the SDK or an earlier library serves every interface that it requires. See [Modules and Interfaces](../app/modules.md#system-libraries) for the load order.
 
 | Library | Serves | Requires |
 |---|---|---|
@@ -59,4 +63,4 @@ The eight libraries that an `App` loads, in load order. A module can only connec
 | `rexxbdm` | `IXBDMExports` | none |
 | `rexkernel` | `IKernelControl`, `IObjectTable`, `IThreadRegistry`, `IModuleRegistry`, `INotificationBroadcaster`, `IOverlappedDispatcher` | `ISettingsRegistry`, `ILogger`, `IFileSystemFactory`, `IUISystem` |
 
-`IUIControl`, `IGraphicsControl`, `IXAMExports`, `IXBDMExports` and `IKernelControl` are private interfaces that only the app and the kernel can find. The app serves `IAppInfo` from a code module of its own.
+`IUIControl`, `IGraphicsControl`, `IXAMExports`, `IXBDMExports` and `IKernelControl` are private interfaces that only the app and the kernel can find. The app serves `IAppInfo` itself, from a module that is compiled into the program.

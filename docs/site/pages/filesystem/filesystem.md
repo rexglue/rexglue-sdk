@@ -8,7 +8,7 @@ Each `TitleRuntime` creates its own `rex::filesystem::IFileSystem` at `Load`, fr
 
 The Xbox 360 kernel identifies each storage device by a device path, such as `\Device\Harddisk0\Partition1` for the game partition. Games rarely use device paths. They use short names such as `game:` and `update:`, which the kernel maps to device paths.
 
-The filesystem keeps one table for each of these two steps:
+The filesystem resolves a guest path in two steps and keeps one table for each:
 
 - A link maps a short name to a device path. The link `game:` stands for `\Device\Harddisk0\Partition1`.
 - A mount maps a device path to a provider, the object that serves the files under that path. The provider of the game partition reads the host folder in `title.game_root`.
@@ -62,7 +62,7 @@ When `title.game_root` is set, `TitleRuntime::Load` calls `IFileSystem::Configur
 
 With an empty `title.game_root`, `Load` logs a warning and adds no mounts. A `title.game_root` that is not a folder fails `Load`. A failed update mount logs a warning, and `Load` continues without it.
 
-`Load` reads `title.game_writable` once. Set it before `Load` runs, as a title layer value in `OnConfigure`. No link points at `cache:`, so a path under `cache:` fails with `kNoMount`.
+`Load` reads `title.game_writable` once. Set it before `Load` runs, such as from your program in `OnConfigure`. A value from the config file or the command line works too. No link points at `cache:`, so a path under `cache:` fails with `kNoMount`.
 
 A read only mount refuses to create files. An open for writing on a read only mount gets read access instead, and the filesystem logs a warning.
 
@@ -97,11 +97,11 @@ Links and mounts match whole components and ignore ASCII case. So `game:` matche
 
 A game opens a file with the kernel export `NtCreateFile`. The export calls `IFileSystem::Open` and wraps the result in a `FileObject` from `rex/kernel/object/file_object.h`, the kernel object behind the guest file handle. `NtOpenFile` calls `NtCreateFile` to open an existing file.
 
-The object attributes of the call can give an open directory handle as the root. The path is then relative to that directory, and the export calls `IFileSystem::OpenRelative`. Two open files on the same path share one node of the file tree.
+The object attributes of the call can give an open directory handle as the root. The path is then relative to that directory, and the export calls `IFileSystem::OpenRelative`. Two open handles on the same path share one entry of the filesystem, which holds the size and the times, so a change through one handle shows through the other.
 
 ### Disposition
 
-The disposition of an open sets whether the open uses, creates, replaces or truncates the file, depending on whether the path exists. The open returns an `OpenAction` that says which of these it did. See [Dispositions](../appendix/file-exports.md#dispositions) and [Open Actions](../appendix/file-exports.md#open-actions) for each value.
+The disposition of an open sets whether the open uses, creates, replaces or truncates the file, depending on whether the path exists. The open returns an `OpenAction` that reports which of these it did. See [Dispositions](../appendix/file-exports.md#dispositions) and [Open Actions](../appendix/file-exports.md#open-actions) for each value.
 
 Two `OpenOptions` fields select the type of entry:
 

@@ -279,8 +279,9 @@ Result<void> AudioSystem::Start(rex::apu::IAudioDriver* device) {
     });
   };
 
+  const u32 wanted_channels = settings_.force_stereo.Get() ? 2u : rex::apu::kAudioFrameChannels;
   if (s.driver) {
-    if (auto opened = s.driver->OpenDevice(rex::apu::kAudioFrameChannels, make_fill())) {
+    if (auto opened = s.driver->OpenDevice(wanted_channels, make_fill())) {
       s.channels = *opened;
       s.device_open = true;
     } else {
@@ -288,7 +289,7 @@ Result<void> AudioSystem::Start(rex::apu::IAudioDriver* device) {
       s.reopen_failed = true;
     }
   }
-  s.thread = std::thread([this, make_fill] {
+  s.thread = std::thread([this, make_fill, wanted_channels] {
     State& s = *state_;
     auto next = Clock::now() + kPeriod;
     for (;;) {
@@ -321,8 +322,7 @@ Result<void> AudioSystem::Start(rex::apu::IAudioDriver* device) {
         if (s.driver) {
           if (s.reopen_wait > 0) {
             --s.reopen_wait;
-          } else if (auto opened =
-                         s.driver->OpenDevice(rex::apu::kAudioFrameChannels, make_fill())) {
+          } else if (auto opened = s.driver->OpenDevice(wanted_channels, make_fill())) {
             s.channels = *opened;
             s.device_open = true;
             if (s.reopen_failed) {

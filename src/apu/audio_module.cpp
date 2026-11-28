@@ -48,12 +48,14 @@ void AudioModule::Disconnect() {
 }
 
 Result<void> AudioModule::Init() {
-  auto selected =
-      SelectDrivers(*factory_, DriverType::kAudio, system_->GetSettings().driver.Get(), *context_);
-  if (selected) {
-    drivers_ = std::move(*selected);
-  } else {
-    REXAPU_WARN("audio driver: {}", selected.error().message);
+  if (needs_->audio) {
+    auto selected = SelectDrivers(*factory_, DriverType::kAudio,
+                                  system_->GetSettings().driver.Get(), *context_);
+    if (selected) {
+      drivers_ = std::move(*selected);
+    } else {
+      REXAPU_WARN("audio driver: {}", selected.error().message);
+    }
   }
   if (drivers_.empty() && needs_->audio) {
     return Err(ErrorCategory::kConfig, "no audio driver is available");

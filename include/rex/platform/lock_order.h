@@ -48,13 +48,35 @@ REX_API void PushLockRank(LockRank rank);
 
 REX_API void PopLockRank(LockRank rank);
 
+namespace detail {
+
+/** Calls PushLockRank in a debug build and does nothing otherwise. */
+inline void PushRankChecked(LockRank rank) {
+#if defined(REXGLUE_LOCK_RANK_CHECKS)
+  PushLockRank(rank);
+#else
+  (void)rank;
+#endif
+}
+
+/** Calls PopLockRank in a debug build and does nothing otherwise. */
+inline void PopRankChecked(LockRank rank) {
+#if defined(REXGLUE_LOCK_RANK_CHECKS)
+  PopLockRank(rank);
+#else
+  (void)rank;
+#endif
+}
+
+}  // namespace detail
+
 /** A non recursive mutex that reports order violations in a debug build. */
 class RankedMutex : public rex::NonCopyable {
  public:
   explicit RankedMutex(LockRank rank) : rank_(rank) {}
 
   void lock() {
-    PushLockRank(rank_);
+    detail::PushRankChecked(rank_);
     mutex_.lock();
   }
 
@@ -62,12 +84,12 @@ class RankedMutex : public rex::NonCopyable {
     if (!mutex_.try_lock()) {
       return false;
     }
-    PushLockRank(rank_);
+    detail::PushRankChecked(rank_);
     return true;
   }
 
   void unlock() {
-    PopLockRank(rank_);
+    detail::PopRankChecked(rank_);
     mutex_.unlock();
   }
 
@@ -82,22 +104,22 @@ class RankedSharedMutex : public rex::NonCopyable {
   explicit RankedSharedMutex(LockRank rank) : rank_(rank) {}
 
   void lock() {
-    PushLockRank(rank_);
+    detail::PushRankChecked(rank_);
     mutex_.lock();
   }
 
   void unlock() {
-    PopLockRank(rank_);
+    detail::PopRankChecked(rank_);
     mutex_.unlock();
   }
 
   void lock_shared() {
-    PushLockRank(rank_);
+    detail::PushRankChecked(rank_);
     mutex_.lock_shared();
   }
 
   void unlock_shared() {
-    PopLockRank(rank_);
+    detail::PopRankChecked(rank_);
     mutex_.unlock_shared();
   }
 
@@ -110,7 +132,13 @@ class RankedSharedMutex : public rex::NonCopyable {
 
 namespace rex::platform::lock_rank {
 
-/** Rank 1, the lowest. Guards the interrupt state of the function dispatcher. */
+/**
+ * Rank 0, the lowest. Held while a thread delivers a change to one setting change function, waits
+ * for its call or makes it, so everything the function takes ranks above it.
+ */
+inline constexpr LockRank kSettingsWatch{0};
+
+/** Rank 1. Guards the interrupt state of the function dispatcher. */
 inline constexpr LockRank kInterruptState{1};
 
 /** Rank 2. Guards the identity map of the object table and the module load counts. */
@@ -133,5 +161,11 @@ inline constexpr LockRank kObjectState{7};
 
 /** Rank 8. Guards the deferred procedure call queue of the dispatcher. */
 inline constexpr LockRank kDPC{8};
+
+/** Rank 253. Guards the read and rewrite of one input binding edit. */
+inline constexpr LockRank kBindingEdit{253};
+
+/** Rank 254, below the leaf rank only. Guards the maps of the settings registry. */
+inline constexpr LockRank kSettingsRegistry{254};
 
 }  // namespace rex::platform::lock_rank

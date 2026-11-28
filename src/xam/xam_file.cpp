@@ -97,7 +97,7 @@ REX_XAM_SHIM_FN(CreateFileA, u32, MappedString lpFileName, u32 dwDesiredAccess,
     return kernel::kXInvalidHandleValue;
   }
 
-  auto added = CurrentTitle().objects.AddFile(std::move(opened->file), true);
+  auto added = CurrentTitle().objects.AddFile(std::move(opened->file), true, false);
   if (!added) {
     return kernel::kXInvalidHandleValue;
   }
@@ -275,7 +275,7 @@ REX_XAM_SHIM_FN(FindFirstFileA, u32, MappedString lpFileName, MappedVoid lpFindF
     return kernel::kXInvalidHandleValue;
   }
 
-  auto added = CurrentTitle().objects.AddFile(std::move(opened->file), true);
+  auto added = CurrentTitle().objects.AddFile(std::move(opened->file), true, false);
   if (!added) {
     return kernel::kXInvalidHandleValue;
   }

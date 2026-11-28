@@ -25,7 +25,7 @@ class VulkanSettings : public SettingOwner {
   VulkanSettings() : SettingOwner("gpu.vulkan") {}
 
   REX_SETTING(i32, device, -1, "Physical device index, -1 selects automatically", Range{-1, 15},
-              kStartupOnly);
+              kInitOnly);
   REX_SETTING(bool, readback_resolve, false, "Read render to texture results on the CPU");
   REX_SETTING(bool, readback_memexport, false,
               "Read data written by memory export in shaders on the CPU");
@@ -38,54 +38,57 @@ class VulkanSettings : public SettingOwner {
               "Use VK_KHR_dynamic_rendering when the device supports it, render passes otherwise");
   REX_SETTING(i32, pipeline_creation_threads, -1,
               "Number of pipeline creation threads for async pipeline creation, -1 for auto",
-              Range{-1, 32}, kRestart);
+              Range{-1, 32}, kRequiresRestart);
   REX_SETTING(bool, tessellation_wireframe, false, "Render tessellation as wireframe");
   REX_SETTING(bool, force_expand_point_sprites_in_vs, false,
               "Force point sprite expansion in the vertex shader, even when geometry shaders are "
               "available",
-              kStartupOnly);
+              kInitOnly);
   REX_SETTING(bool, force_expand_rectangle_lists_in_vs, false,
               "Force rectangle list expansion in the vertex shader, even when geometry shaders "
               "are available",
-              kStartupOnly);
+              kInitOnly);
   REX_SETTING(bool, force_convert_quad_lists_to_triangle_lists, false,
               "Force quad list conversion to triangle lists in primitive processing, even when "
               "geometry shaders are available",
-              kStartupOnly);
-  REX_SETTING(std::string, render_target_path, "", "Render target implementation path",
-              kStartupOnly);
-  REX_SETTING(bool, sparse_shared_memory, true, "Use sparse shared memory", kRestart);
+              kInitOnly);
+  REX_SETTING(std::string, render_target_path, "",
+              "Render target implementation path, empty uses host framebuffers",
+              Allowed("", "fbo", "fsi"), kInitOnly);
+  REX_SETTING(bool, sparse_shared_memory, true, "Use sparse shared memory", kRequiresRestart);
   REX_SETTING(bool, cube_map_edge_filtering_off, false,
               "Sample cube maps without edge filtering across faces");
   REX_SETTING(bool, require_geometry_shader, !REX_PLATFORM_MAC,
               "Require geometryShader support, disable to allow the fallback primitive emulation "
               "paths",
-              kStartupOnly);
+              kInitOnly);
   REX_SETTING(bool, require_fill_mode_non_solid, !REX_PLATFORM_MAC,
               "Require fillModeNonSolid support, disable to allow the fallback to solid fill for "
               "line and point polygon modes",
-              kStartupOnly);
+              kInitOnly);
   REX_SETTING(bool, log_debug_messages, true, "Log Vulkan debug messages");
   REX_SETTING(bool, render_pass_clear, true, "Clear render pass during presentation");
-  REX_SETTING(bool, allow_present_mode_immediate, true, "Allow immediate present mode (no vsync)");
+  REX_SETTING(bool, allow_present_mode_immediate, true,
+              "Allow immediate present mode (may tear). Also used with gpu.vsync when mailbox is "
+              "unavailable. Disable it and mailbox to get blocking FIFO presentation");
   REX_SETTING(bool, allow_present_mode_mailbox, true,
               "Allow mailbox present mode (triple buffering)");
   REX_SETTING(bool, allow_present_mode_fifo_relaxed, true, "Allow FIFO relaxed present mode");
-  REX_SETTING(bool, validation, false, "Enable Vulkan validation layers", kStartupOnly);
+  REX_SETTING(bool, validation, false, "Enable Vulkan validation layers", kInitOnly);
   REX_SETTING(bool, prefer_geometry_shader, true,
               "Prefer physical devices supporting geometryShader when selecting automatically",
-              kStartupOnly);
+              kInitOnly);
   REX_SETTING(bool, prefer_fragment_stores_and_atomics, true,
               "Prefer physical devices supporting fragmentStoresAndAtomics when selecting "
               "automatically",
-              kStartupOnly);
+              kInitOnly);
   REX_SETTING(bool, prefer_vertex_pipeline_stores_and_atomics, true,
               "Prefer physical devices supporting vertexPipelineStoresAndAtomics when selecting "
               "automatically",
-              kStartupOnly);
+              kInitOnly);
   REX_SETTING(bool, prefer_fill_mode_non_solid, true,
               "Prefer physical devices supporting fillModeNonSolid when selecting automatically",
-              kStartupOnly);
+              kInitOnly);
 };
 
 }  // namespace rex::gpu::vulkan

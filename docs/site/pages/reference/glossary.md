@@ -38,7 +38,7 @@ Human interface device. The `hid.*` settings cover input devices.
 
 ### IRQL
 
-Interrupt request level of the kernel.
+Interrupt request level, the kernel priority level that a guest thread runs at, kept in its [PCR](#pcr). Deferred procedure calls run only while the level is below the dispatch level.
 
 ### MMIO
 
@@ -54,7 +54,7 @@ Microsoft Visual C++, the compiler that built the game code that ReXGlue recompi
 
 ### PCR
 
-Processor control region: the kernel block for each guest thread.
+Processor control region, the kernel data structure of a guest thread, one for each guest thread. Guest code reaches it through register r13.
 
 ### PM4
 
@@ -132,11 +132,11 @@ The in game overlay that shows the log and takes commands. Its hotkey is the bac
 
 ### Detour
 
-A function hook whose body can call the original function, which stays callable as `__imp__name`. See [Hooks](../codegen/hooks.md).
+A function hook that wraps the original function. Its body must call the original on every path, and the original stays callable as `__imp__name`. See [Hooks](../codegen/hooks.md).
 
 ### DLL Module
 
-A binary of a project other than the entrypoint, named by its DLL file name without the extension.
+A XEX of the game other than the entrypoint, such as a DLL that the game loads while it runs. Codegen recompiles it as its own binary, named by its DLL file name without the extension. Not an [SDK module](#sdk-module).
 
 ### Driver
 
@@ -152,11 +152,11 @@ A shared library that provides drivers, such as `rexapu-sdl3`, `rexhid-xinput` o
 
 ### Entry Point
 
-The address of the function where a binary starts running.
+The address of the function where a binary starts running. Not the entrypoint, which is the main XEX of a project.
 
 ### Entrypoint
 
-The main XEX of a project. Every other binary is a DLL module.
+The main XEX of a project. Every other binary is a DLL module. Not an entry point, which is the address where a binary starts running.
 
 ### Function Table
 
@@ -176,7 +176,7 @@ The Xbox 360 side: the recompiled code, its memory, threads and paths.
 
 ### Headless
 
-The state of the UI system when it has no display: `ui.driver` is `none`, the UI driver reports no display, or the window failed to open. Message boxes only log, and prompts are canceled. See [Headless](../devices/ui.md#headless).
+The state of the UI system when it has no display: `ui.driver` is `none`, the UI driver reports no display, or the window failed to open. Message boxes only log, and prompts are canceled. See [Headless](../devices/ui.md#headless). The setting `kernel.headless` is separate. It makes the system dialogs of the game return immediately.
 
 ### Hook
 
@@ -208,7 +208,7 @@ One of `xboxkrnl.exe`, `xam.xex` and `xbdm.xex`, which the runtime creates. A ke
 
 ### Layer
 
-In settings, the source that wrote a value: default, title, file, environment, command line, runtime or lock. A stronger layer overwrites a weaker one. See [Layers](../app/settings.md#layers). In the manifest, the shared layer holds the keys that apply to every binary.
+In settings, the source that wrote a value: default, title, file, environment, command line, runtime or lock. A value from the same or a higher layer replaces it. See [Layers](../app/settings.md#layers). In the manifest, the shared layer holds the keys that apply to every binary.
 
 ### Link
 
@@ -224,7 +224,7 @@ The TOML file that lists the binaries `rexglue codegen` recompiles and their set
 
 ### Module
 
-A library that `rex::Init` loads, connects and initializes.
+Short for [SDK module](#sdk-module). A XEX of the game is a [DLL module](#dll-module).
 
 ### Mount
 
@@ -236,7 +236,7 @@ A reference from `IObjectTable::Get` that keeps a kernel object valid for the le
 
 ### Present Thread
 
-The thread that makes the present calls of the graphics system and presents frames. See [Graphics](../devices/graphics.md).
+The thread that shows finished frames in the window. See [Graphics](../devices/graphics.md).
 
 ### Provider
 
@@ -248,15 +248,23 @@ The read and write functions that receive the game's accesses to a GPU or APU re
 
 ### Register Sharing
 
-A function, such as an SEH funclet, that uses the registers of its caller instead of its own.
+A function that continues the work of its caller and reads the register values of the caller instead of its own, such as a handler block of an SEH scope that the compiler emits as a separate function.
 
 ### rexglue
 
 The command line tool that creates projects and recompiles the XEX of a game into C++. See [Command line](cli.md).
 
+### SDK Module
+
+An object that implements `rex::IModule`, which `rex::Init` connects and initializes. Most SDK modules live in a shared library that the app loads by name. See [Modules and Interfaces](../app/modules.md). Not a [DLL module](#dll-module) or a [kernel module](#kernel-module), which are parts of the game.
+
 ### Settings Class
 
 A class derived from `SettingOwner` that declares settings.
+
+### Settings Overlay
+
+The in game overlay that lists every setting and changes it. Its hotkey is F4, set by `ui.bind.settings`. See [Overlays and dialogs](../devices/ui.md#overlays-and-dialogs).
 
 ### Shared Layer
 
@@ -272,7 +280,7 @@ One of `IInputSystem`, `IAudioSystem`, `IUISystem` or `IGraphicsSystem`, which c
 
 ### Title
 
-The Xbox 360 game program that is recompiled and run.
+The Xbox 360 game program that is recompiled and run. A title is the game, in Xbox 360 terms, and SDK names use `Title`.
 
 ### Title Workspace
 
@@ -280,7 +288,7 @@ The memory that XAM allocates from on behalf of the game, through `ITitleWorkspa
 
 ### Tool Mode
 
-A runtime built from an image with no code. It loads the kernel and mounts the game files, but installs no recompiled code.
+A runtime started without recompiled game code, which tools such as `rexglue` use to read a XEX. It loads the kernel and mounts the game files, but installs no recompiled code.
 
 ### UI Thread
 
@@ -293,3 +301,7 @@ One of the four controller slots, 0 to 3, that a game reads input from.
 ### Write Watch
 
 A one shot watch on a physical page that calls its listeners on the next write, including host writes through `GuestMemory`.
+
+### Xenos
+
+The GPU of the Xbox 360. A Xenos graphics driver emulates it on Direct3D 12 or Vulkan, and the `gpu.xenos.*` settings apply to both.

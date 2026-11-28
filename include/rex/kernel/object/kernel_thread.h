@@ -42,6 +42,7 @@ class TitleRuntime;
 
 namespace rex::kernel {
 
+class HostSlot;
 class ThreadRegistry;
 
 /** Table slot data that names the `KernelThread` of a thread ID. */
@@ -135,7 +136,9 @@ class REX_KERNEL_API KernelThread : public ICallingThread, public rex::NonCopyab
   static void SleepFor(std::chrono::microseconds duration);
 
   /**
-   * Writes the CPU time of the calling thread to its KTHREAD, if it has a `KernelThread`.
+   * Writes the CPU time of the calling thread to its KTHREAD, if it has a `KernelThread`. The
+   * console updates the time from the clock interrupt, so the write happens at most once per
+   * millisecond of wall time for a thread, and exit writes the exact time.
    */
   static void WriteKernelTime();
 
@@ -387,10 +390,17 @@ class REX_KERNEL_API KernelThread : public ICallingThread, public rex::NonCopyab
 
   void WriteExitState(u32 exit_code);
 
+  /** Writes the CPU time of the calling thread to the KTHREAD of this thread. */
+  void StoreKernelTime();
+
   TitleRuntime* runtime_;
   ThreadRegistry* registry_ = nullptr;
+  /** Counts this thread while its host thread runs, set by Create. */
+  std::shared_ptr<HostSlot> host_slot_;
   X_HANDLE handle_ = 0;
   u32 guest_object_ptr_ = 0;
+  /** Milliseconds on the steady clock when WriteKernelTime last wrote, 0 before the first. */
+  u64 kernel_time_written_ms_ = 0;
   rex::MoveOnlyFunction<int()> host_fn_;
   std::atomic<bool> released_{false};
   std::atomic<bool> abandoned_{false};

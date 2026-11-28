@@ -64,7 +64,9 @@ void Fiber::SwitchTo(Fiber* target) {
 
 void Fiber::Destroy() {
   if (is_thread_fiber_) {
-    g_current_fiber = nullptr;
+    if (g_current_fiber == this) {
+      g_current_fiber = nullptr;
+    }
   } else {
     assert(this != g_current_fiber && "Destroy called on the currently running fiber");
   }

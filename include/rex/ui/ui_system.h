@@ -120,7 +120,7 @@ class REX_UI_API UISettings final : public SettingOwner {
   UISettings();
 
   REX_SETTING(std::string, driver, "sdl3",
-              "UI driver, none for headless in an app that does not require a UI", kStartupOnly);
+              "UI driver, none for headless in an app that does not require a UI", kInitOnly);
   REX_SETTING(std::string, title, "", "Window title, the app name when empty");
   REX_SETTING(i32, window_width, 0, "Window width, 0 for the video mode width", Range{0, 16384});
   REX_SETTING(i32, window_height, 0, "Window height, 0 for the video mode height", Range{0, 16384});
@@ -134,11 +134,11 @@ class REX_UI_API UISettings final : public SettingOwner {
   REX_SETTING(std::string, resolution, "",
               "Video mode preset or WxH, empty to use the ui.video_mode_* settings");
   REX_SETTING(i32, video_mode_width, 1280, "Video mode width the title sees", Range{640, 4095},
-              kRestart);
+              kRequiresRestart);
   REX_SETTING(i32, video_mode_height, 720, "Video mode height the title sees", Range{480, 4095},
-              kRestart);
+              kRequiresRestart);
   REX_SETTING(f64, video_mode_refresh_rate, 60.0, "Refresh rate the title sees", Range{24.0, 240.0},
-              kRestart);
+              kRequiresRestart);
   REX_SETTING(f64, cursor_timeout, 0.0, "Seconds before an idle cursor hides, 0 never hides",
               Range{0.0, 3600.0});
 };
@@ -151,7 +151,7 @@ class REX_UI_API UISettings final : public SettingOwner {
  * Window, ImGui, overlay and dialog calls belong on the UI thread. Calls marked "any thread" are
  * safe everywhere.
  */
-REX_DECLARE_INTERFACE(IUISystem, 2)
+REX_DECLARE_INTERFACE(IUISystem, 3)
 /** Returns the player's UI settings. */
   virtual UISettings& GetSettings() = 0;
 
@@ -192,7 +192,8 @@ REX_DECLARE_INTERFACE(IUISystem, 2)
   /**
    * Runs a function on the UI thread and waits for it, at once when already there. Any thread.
    *
-   * @return False when the UI system stopped and the function did not run.
+   * @return False when the function did not run, because the UI system stopped or the calling
+   * thread runs a setting change function.
    */
   [[nodiscard]] virtual bool RunSynchronous(MoveOnlyFunction<void()> fn) = 0;
 

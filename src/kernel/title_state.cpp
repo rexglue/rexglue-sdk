@@ -30,6 +30,7 @@
 
 #include <rex/utility.h>
 
+#include "kernel/thread_wait.h"
 #include "kernel/title_context.h"
 #include "kernel/apu.h"
 #include <rex/assert.h>
@@ -105,9 +106,7 @@ void TitleState::ResolveRoots() {
       paths.game_writable.Get() ? filesystem::MountFlags::kWritable : filesystem::MountFlags::kNone;
   user_data_root_ = REX_PATHS().user_root.Get();
   update_data_root_ = paths.update_root.Get();
-  metadata_root_ = paths.metadata_root.GetLayer() == SettingLayer::kDefault
-                       ? std::filesystem::path()
-                       : paths.metadata_root.Get();
+  metadata_root_ = paths.metadata_root.Get();
 }
 
 filesystem::IFileSystem* TitleState::GetFileSystem() const {
@@ -209,6 +208,7 @@ Result<void> TitleState::LoadKernel() {
   Clock::SetGuestTimeScalar(1.0);
 
   platform::WidenProcessAffinity();
+  MeasureWaitSpinBound();
 
   ui_ = nullptr;
   user_language_ = ResolveUserLanguage(GetKernelSettings().user_language.Get(), ui_);
@@ -329,9 +329,9 @@ Result<void> TitleState::InstallImage() {
     function_dispatcher_->AddRecompiledCode(image_info.recompiled_code());
   }
 
-  if (!function_dispatcher_->InitializeFunctionTable(image_info.code_base, image_info.code_size,
-                                                     image_info.image_base, image_info.image_size,
-                                                     /*is_entrypoint=*/true)) {
+  if (!function_dispatcher_->InitializeFunctionTable(
+          image_info.code_base, image_info.code_size, image_info.image_base, image_info.image_size,
+          /*is_entrypoint=*/true, image_info.function_table_base)) {
     Shutdown();
     return Err(SetupError(X_STATUS_UNSUCCESSFUL, "the function table cannot be initialized"));
   }
@@ -425,7 +425,7 @@ void TitleState::DetachSystems() {
 void TitleState::Shutdown() {
   title_launched_.store(false, std::memory_order_release);
   if (settings_control_) {
-    settings_control_->Thaw(SettingLife::kUntilLaunch);
+    settings_control_->Thaw(SettingMode::kLockedInGame);
     settings_control_ = nullptr;
   }
   TitleRuntime* self = &owner_;
@@ -525,6 +525,19 @@ WorkspaceHeap& TitleState::GetWorkspace() {
   return *workspace_;
 }
 
+Result<u32> TitleState::Allocate(u32 size, bool zero) {
+  if (!workspace_) {
+    return Err<u32>(ErrorCategory::kRuntime, "the title has no workspace");
+  }
+  return workspace_->Allocate(size, zero);
+}
+
+void TitleState::Free(u32 address) {
+  if (workspace_) {
+    workspace_->Free(address);
+  }
+}
+
 IModuleRegistry& TitleState::GetModuleRegistry() {
   return *module_registry_;
 }
@@ -576,7 +589,7 @@ void TitleState::ReportTitleLaunched() {
     if (services && services->controls) {
       settings_control_ = services->controls->Get<ISettingsRegistryControl>();
       if (settings_control_) {
-        settings_control_->Freeze(SettingLife::kUntilLaunch);
+        settings_control_->Freeze(SettingMode::kLockedInGame);
       }
     }
   }
@@ -792,7 +805,7 @@ Result<void> TitleState::CreateXAM() {
           .exit = *this,
           .debug = *this,
           .heap = *memory_,
-          .workspace = *workspace_,
+          .workspace = *this,
           .file_system = *file_system_,
           .file_system_factory = *GetKernelServices()->file_system,
           .membase = memory_->GetMembase(),
@@ -803,10 +816,6 @@ Result<void> TitleState::CreateXAM() {
   }
   xam_->SetTitleLanguage(user_language_);
   return {};
-}
-
-void TitleState::WriteTitleDebugString(std::string_view text) {
-  REXTITLE_DEV("{}", text);
 }
 
 void TitleState::ReleaseXAMApps() {

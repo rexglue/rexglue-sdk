@@ -152,6 +152,8 @@ struct SocketObject final : kernel::IXAMObject {
   std::unique_ptr<rex::platform::Event> event;
   /** True once Cancel ran. Every later call fails, and the native socket stays open. */
   std::atomic<bool> closed = false;
+  /** True once the native socket was seen bound to a port (UnboundDatagram checks it). */
+  mutable std::atomic<bool> bound_seen = false;
   /** The native socket, set once by Initialize or Accept and closed with the object. */
   rex::platform::Socket socket;
   /** Guards pending_receive. The receive thread never takes it. */

@@ -12,6 +12,8 @@
 #include <rex/kernel/object/object.h>
 
 #include <algorithm>
+#include <array>
+#include <atomic>
 #include <chrono>
 #include <mutex>
 #include <type_traits>
@@ -28,7 +30,10 @@
 #include <rex/kernel/thread_registry.h>
 #include <rex/kernel/guest_allocator.h>
 #include <rex/platform/sync.h>
+#include <rex/platform/thread.h>
 #include <rex/kernel/object/object_table.h>
+#include "kernel/categories.h"
+#include "kernel/kernel_pool.h"
 
 #include "kernel/thread_wait.h"
 
@@ -193,10 +198,28 @@ std::string NameFromAttributes(kernel::GuestAddressSpace* memory, u32 obj_attrib
 }
 
 ObjectBlock AllocObjectBlock(kernel::GuestAddressSpace* memory, u32 size, u32 type_address,
-                             WorkspaceHeap* workspace) {
-  const u32 total_size = size + sizeof(X_OBJECT_HEADER);
-  const u32 mem = workspace ? workspace->Allocate(total_size, false).value_or(0)
-                            : memory->SystemHeapAlloc(total_size);
+                             WorkspaceHeap* workspace, const ObjectBlockOptions& options) {
+  // A named object takes the name after the 4 byte aligned body and 16 more header bytes, as the
+  // console does. The SDK layout keeps the body after the first header, and the rest is unused.
+  const u32 header_size = sizeof(X_OBJECT_HEADER);
+  const u32 total_size = options.name_length
+                             ? ((size + 3) & ~3u) + options.name_length + 2 * header_size
+                             : size + header_size;
+  const u32 thread_shift = options.thread ? 8 : 0;
+  u32 mem = 0;
+  if (workspace) {
+    mem = workspace->Allocate(total_size, false).value_or(0);
+  } else if (type_address != 0) {
+    const u32 pool_type = (options.attributes & 0x1000) ? 1 : (options.attributes & 0x2000) ? 2 : 0;
+    const u32 tag =
+        static_cast<u32>(memory->TranslateVirtual<const X_OBJECT_TYPE*>(type_address)->pool_tag);
+    mem = memory->GetPool().Allocate(total_size + thread_shift, tag, pool_type);
+    if (mem && thread_shift && (mem & 0xFFF) != 0) {
+      mem += thread_shift;
+    }
+  } else {
+    mem = memory->SystemHeapAlloc(total_size);
+  }
   if (!mem) {
     return {};
   }
@@ -213,7 +236,7 @@ void FreeObjectBlock(kernel::GuestAddressSpace* memory, u32 address, WorkspaceHe
   const u32 block = address - sizeof(X_OBJECT_HEADER);
   if (workspace) {
     workspace->Free(block);
-  } else {
+  } else if (!memory->GetPool().Free(block % 32 == 16 ? block - 8 : block)) {
     memory->SystemHeapFree(block);
   }
 }
@@ -364,6 +387,102 @@ X_STATUS WaitMultiple(TitleRuntime& runtime, std::span<const ObjectPin> objects,
       }
       return X_STATUS_ABANDONED_WAIT_0;
   }
+}
+
+namespace {
+
+std::atomic<i64> g_spin_bound_ns{0};
+std::once_flag g_spin_bound_once;
+
+constexpr int kWarmupRoundTrips = 32;
+constexpr int kTimedRoundTrips = 200;
+
+/** Returns the lowest set bit of the mask, or 0 for an empty mask. */
+u64 LowestBitOf(u64 mask) {
+  return mask & (~mask + 1);
+}
+
+/**
+ * Returns half the median round trip of 2 host threads that pass control through 2 auto reset
+ * events, the cost of one block and one wake on another processor. Each thread is pinned to its
+ * own processor of the process affinity mask, and the measuring thread is unpinned before it ends.
+ * Returns 0 when the mask holds 1 processor.
+ */
+std::chrono::nanoseconds MeasureBlockAndWake() {
+  auto ping = rex::platform::Event::CreateAutoResetEvent(false);
+  auto pong = rex::platform::Event::CreateAutoResetEvent(false);
+  if (!ping || !pong) {
+    return {};
+  }
+  using clock = std::chrono::steady_clock;
+  clock::duration cost{};
+  auto measurer = rex::platform::Thread::Create({}, [&] {
+    rex::platform::Thread* self = rex::platform::Thread::GetCallingThread();
+    const u64 mask = self->GetAffinityMask();
+    const u64 first = LowestBitOf(mask);
+    const u64 second = LowestBitOf(mask & ~first);
+    if (second == 0) {
+      return;
+    }
+    self->SetAffinityMask(first);
+    constexpr int kRoundTrips = kWarmupRoundTrips + kTimedRoundTrips;
+    auto partner = rex::platform::Thread::Create({}, [&] {
+      rex::platform::Thread::GetCallingThread()->SetAffinityMask(second);
+      for (int n = 0; n < kRoundTrips; ++n) {
+        (void)rex::platform::Wait(ping.get(), false);
+        pong->Set();
+      }
+    });
+    if (partner) {
+      std::array<clock::duration, kTimedRoundTrips> trips{};
+      for (int n = 0; n < kRoundTrips; ++n) {
+        const auto start = clock::now();
+        ping->Set();
+        (void)rex::platform::Wait(pong.get(), false);
+        if (n >= kWarmupRoundTrips) {
+          trips[n - kWarmupRoundTrips] = clock::now() - start;
+        }
+      }
+      (void)rex::platform::Wait(partner.get(), false);
+      auto median = trips.begin() + kTimedRoundTrips / 2;
+      std::ranges::nth_element(trips, median);
+      cost = *median;
+    }
+    self->SetAffinityMask(mask);
+  });
+  if (measurer) {
+    (void)rex::platform::Wait(measurer.get(), false);
+  }
+  return std::chrono::duration_cast<std::chrono::nanoseconds>(cost) / 2;
+}
+
+}  // namespace
+
+void MeasureWaitSpinBound() {
+  std::call_once(g_spin_bound_once, [] {
+    if (rex::platform::GetLogicalProcessorCount() < 2) {
+      REXKRNL_INFO("Contended critical sections do not spin on a host with 1 logical processor");
+      return;
+    }
+    const std::chrono::nanoseconds bound = MeasureBlockAndWake();
+    g_spin_bound_ns.store(bound.count(), std::memory_order_relaxed);
+    if (bound.count() == 0) {
+      REXKRNL_INFO("Contended critical sections do not spin, no 2 processors to measure across");
+      return;
+    }
+    REXKRNL_INFO(
+        "Contended critical sections spin for up to {} ns before they block, the measured host "
+        "block and wake cost across processors",
+        bound.count());
+  });
+}
+
+std::chrono::nanoseconds GetWaitSpinBound() {
+  return std::chrono::nanoseconds(g_spin_bound_ns.load(std::memory_order_relaxed));
+}
+
+void SetWaitSpinBoundForTest(std::chrono::nanoseconds bound) {
+  g_spin_bound_ns.store(bound.count(), std::memory_order_relaxed);
 }
 
 }  // namespace rex::kernel

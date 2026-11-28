@@ -61,3 +61,71 @@ add_subdirectory(unit)
 if (REXGLUE_BUILD_PPC_TESTS)
   add_subdirectory(ppc)
 endif ()
+
+# Builds every test executable and test module. The folder is excluded from the default target, so
+# build this target before ctest. Object libraries and targets with REXGLUE_BUILT_BY_TEST are left
+# out, since a test builds them itself.
+function (_rexglue_collect_test_targets folder out_var)
+  get_property(
+    _targets
+    DIRECTORY "${folder}"
+    PROPERTY BUILDSYSTEM_TARGETS
+  )
+  foreach (_target IN LISTS _targets)
+    get_target_property(_type ${_target} TYPE)
+    get_target_property(_built_by_test ${_target} REXGLUE_BUILT_BY_TEST)
+    if (_type MATCHES "^(EXECUTABLE|SHARED_LIBRARY|MODULE_LIBRARY)$" AND NOT _built_by_test)
+      list(APPEND _found ${_target})
+    endif ()
+  endforeach ()
+  get_property(
+    _folders
+    DIRECTORY "${folder}"
+    PROPERTY SUBDIRECTORIES
+  )
+  foreach (_folder IN LISTS _folders)
+    _rexglue_collect_test_targets("${_folder}" _nested)
+    list(APPEND _found ${_nested})
+  endforeach ()
+  set(${out_var}
+      ${_found}
+      PARENT_SCOPE
+  )
+endfunction ()
+
+_rexglue_collect_test_targets("${CMAKE_CURRENT_SOURCE_DIR}" _rexglue_test_targets)
+add_custom_target(rexglue_tests COMMENT "Building the tests")
+add_dependencies(rexglue_tests ${_rexglue_test_targets})
+
+# Builds every test program, then runs ctest for the configuration that was built
+add_custom_target(
+  rextest_check_all
+  COMMAND ${CMAKE_CTEST_COMMAND} --test-dir ${CMAKE_BINARY_DIR} -C $<CONFIG> --output-on-failure
+  USES_TERMINAL VERBATIM
+  COMMENT "Running every test"
+)
+add_dependencies(rextest_check_all rexglue_tests)
+
+set(REXTEST_BENCHMARK_FILTER
+    "[benchmark]"
+    CACHE STRING "Catch2 test spec that the rextest_benchmark_all target runs"
+)
+set(REXTEST_BENCHMARK_SAMPLES
+    100
+    CACHE STRING "Samples that the rextest_benchmark_all target takes for each benchmark"
+)
+
+# Runs every benchmark with full sampling and writes the CSV file the contributing page describes
+add_custom_target(
+  rextest_benchmark_all
+  COMMAND
+    ${CMAKE_COMMAND} -DUNIT_TESTS=$<TARGET_FILE:unit_tests> -DCONFIG=$<CONFIG>
+    -DOUTPUT_DIR=${CMAKE_BINARY_DIR}/rextest -DSOURCE_DIR=${PROJECT_SOURCE_DIR}
+    "-DFILTER=${REXTEST_BENCHMARK_FILTER}" -DSAMPLES=${REXTEST_BENCHMARK_SAMPLES}
+    -DSDK_VERSION=${REXGLUE_FULL_VERSION}
+    "-DCOMPILER=${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}" -P
+    ${PROJECT_SOURCE_DIR}/cmake/rextest_benchmark.cmake
+  USES_TERMINAL VERBATIM
+  COMMENT "Running every benchmark"
+)
+add_dependencies(rextest_benchmark_all unit_tests)

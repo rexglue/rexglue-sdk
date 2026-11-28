@@ -757,6 +757,13 @@ class VulkanCommandProcessor : public CommandProcessor {
   /** VK_NULL_HANDLE with dynamic rendering, where in_render_pass_ is still true. */
   VkRenderPass current_render_pass_;
   const VulkanRenderTargetCache::Framebuffer* current_framebuffer_;
+
+  /**
+   * The destination view of the open ownership transfer pass with dynamic rendering, VK_NULL_HANDLE
+   * for a draw pass. A transfer pass and a draw pass into one framebuffer share
+   * current_framebuffer_.
+   */
+  VkImageView current_transfer_dest_view_ = VK_NULL_HANDLE;
   bool in_render_pass_ = false;
 
   /** Exactly one of the title and external graphics pipelines is bound, the other is null. */

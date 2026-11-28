@@ -78,6 +78,9 @@ VulkanPipelineCache::VulkanPipelineCache(VulkanCommandProcessor& command_process
       guest_shader_vertex_stages_(guest_shader_vertex_stages) {}
 
 void VulkanPipelineCache::AnalyzeShaderUCode(Shader& shader) {
+  if (shader.IsUcodeAnalyzed()) {
+    return;
+  }
   shader.AnalyzeUcode(ucode_disasm_buffer_,
                       command_processor_.GetXenosSettings().dump_shaders.Get());
 }
@@ -3268,7 +3271,7 @@ void VulkanPipelineCache::StorageWriteThread() {
         storage_.write_flush_pipelines = false;
         flush_pipelines = true;
       }
-      if (!shader && !write_pipeline) {
+      if (!shader && !write_pipeline && !flush_shaders && !flush_pipelines) {
         storage_.write_request_cond.wait(lock);
         continue;
       }

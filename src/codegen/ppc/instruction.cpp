@@ -18,7 +18,9 @@ constexpr u32 kIgnoreBranchConditions = 0x14;
 constexpr int kClassGPR = 1;
 constexpr int kClassGPROrZero = 2;
 constexpr int kClassFPR = 3;
+constexpr int kClassVR = 4;
 constexpr u32 kRegisterCount = 32;
+constexpr u32 kVectorRegisterCount = 128;
 
 constexpr u32 RegisterRange(u32 first, u32 last) {
   u32 mask = 0;
@@ -40,7 +42,19 @@ bool InsertsIntoDestination(std::string_view name) {
     name.remove_suffix(1);
   }
   return name == "rlwimi" || name == "rldimi" || name == "inslwi" || name == "insrwi" ||
-         name == "insrdi";
+         name == "insrdi" || name == "vrlimi128" || name == "vpkd3d128";
+}
+
+bool ZeroesFromMatchingSources(std::string_view name) {
+  if (name.ends_with('.')) {
+    name.remove_suffix(1);
+  }
+  return name == "xor" || name == "andc" || name == "subf" || name == "vxor" || name == "vxor128" ||
+         name == "vandc" || name == "vandc128";
+}
+
+bool IsEncodingField(std::string_view name, unsigned position) {
+  return position == 2 && (name == "vupkhsb128" || name == "vupklsb128");
 }
 
 bool IsUpdateForm(std::string_view name) {
@@ -237,6 +251,10 @@ RegisterEffects GetRegisterEffects(const Instruction& instr) {
                          OperandRegisterClass(insn.opcode, 1) == kClassGPROrZero)
           ? 1
           : 2;
+  const bool through_r1 = ((instr.code >> 16) & 31) == 1;
+  effects.frame_store = name.starts_with("st") && through_r1;
+  effects.frame_load = name.starts_with('l') && through_r1;
+  effects.zeroes = ZeroesFromMatchingSources(name) && insn.operands[1] == insn.operands[2];
   bool first_register = true;
   bool first_gpr = true;
   for (unsigned position = 0; position < std::size(insn.opcode->operands); ++position) {
@@ -245,13 +263,19 @@ RegisterEffects GetRegisterEffects(const Instruction& instr) {
     }
     const int register_class = OperandRegisterClass(insn.opcode, position);
     const u32 number = insn.operands[position];
-    if (register_class == 0 || number >= kRegisterCount ||
-        (register_class == kClassGPROrZero && number == 0)) {
+    const u32 limit = register_class == kClassVR ? kVectorRegisterCount : kRegisterCount;
+    if (register_class == 0 || number >= limit ||
+        (register_class == kClassGPROrZero && number == 0) || IsEncodingField(name, position)) {
       continue;
     }
     const bool is_destination = first_register && !reads_every_operand;
     first_register = false;
-    if (register_class == kClassFPR) {
+    if (register_class == kClassVR) {
+      (is_destination ? effects.vr_def : effects.vr_use).set(number);
+      if (is_destination && InsertsIntoDestination(name)) {
+        effects.vr_use.set(number);
+      }
+    } else if (register_class == kClassFPR) {
       (is_destination ? effects.fpr_def : effects.fpr_use) |= 1u << number;
     } else if (register_class == kClassGPR || register_class == kClassGPROrZero) {
       const u32 count = first_gpr ? WordCount(insn, name) : 1;

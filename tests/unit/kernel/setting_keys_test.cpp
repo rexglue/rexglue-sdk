@@ -61,7 +61,7 @@ constexpr Expected kSettings[] = {
     {"title.game_root", ""},
     {"title.game_writable", "false"},
     {"title.update_root", ""},
-    {"title.metadata_root", "{app.root}/metadata"},
+    {"title.metadata_root", ""},
     {"title.entry", "default.xex"},
     {"title.imports", ""},
     {"runtime.heap_size_mb", "256"},

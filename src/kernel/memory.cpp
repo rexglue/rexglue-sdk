@@ -32,6 +32,7 @@
 #include <rex/kernel/guest_allocator.h>
 #include <rex/ppc/mmio.h>
 #include <rex/kernel/object/kernel_thread.h>
+#include "kernel/kernel_pool.h"
 #include <rex/platform/process.h>
 #include <rex/platform/thread.h>
 #include <rex/kernel/title_runtime.h>
@@ -180,7 +181,7 @@ void StorePageEntry(PageEntry& slot, PageEntry entry) {
 
 }  // namespace
 
-GuestAddressSpace::GuestAddressSpace() {
+GuestAddressSpace::GuestAddressSpace() : pool_(std::make_unique<KernelPool>(*this)) {
   system_page_size_ = static_cast<u32>(rex::memory::GetPageSize());
   system_allocation_granularity_ = static_cast<u32>(rex::memory::GetAllocationGranularity());
   REX_ASSERT(g_active_memory.load() == nullptr);
@@ -222,6 +223,10 @@ GuestAddressSpace::~GuestAddressSpace() {
 }
 
 bool GuestAddressSpace::Initialize() {
+  if (!pool_->IsValid()) {
+    REXSYS_ERROR("Unable to allocate the kernel pool page table.");
+    return false;
+  }
   if ((system_page_size_ > 0x1000) != rex::memory::detail::kPhysicalOffsetInCode) {
     REXSYS_ERROR(
         "The host page size is 0x{:X}, which does not match how this build applies the 0xE0000000 "
@@ -662,7 +667,9 @@ u32 GuestAddressSpace::SystemHeapAlloc(u32 size, u32 alignment, u32 system_heap_
   auto heap = LookupHeapByType(is_physical, 4096);
   u32 address;
   if (!heap->AllocSystemHeap(
-          size, alignment, kernel::kMemoryAllocationReserve | kernel::kMemoryAllocationCommit,
+          size, alignment,
+          kernel::kMemoryAllocationReserve | kernel::kMemoryAllocationCommit |
+              ((system_heap_flags & kernel::kSystemHeapTitle) ? kernel::kMemoryAllocationTitle : 0),
           kernel::kMemoryProtectRead | kernel::kMemoryProtectWrite, false, &address)) {
     return 0;
   }
@@ -775,10 +782,8 @@ void GuestAddressSpace::PlotProfile() {
 #endif
 }
 
-bool GuestAddressSpace::InitializeFunctionTable(u32 code_base, u32 code_size, u32 image_base,
-                                                u32 image_size) {
+bool GuestAddressSpace::InitializeFunctionTable(u32 code_base, u32 code_size, u32 table_base) {
   constexpr u32 kThunkReserveSize = kernel::FunctionDispatcher::kThunkReserveSize;
-  u32 table_base = image_base + image_size;
   u32 table_size = (code_size + kThunkReserveSize) * 2;
 
   REXSYS_DEBUG(
@@ -865,6 +870,14 @@ rex::memory::PageAccess ToPageAccess(u32 protect) {
   } else {
     return rex::memory::PageAccess::kNoAccess;
   }
+}
+
+static bool IsRawPhysicalView(const BaseHeap& heap) {
+  return heap.GetHeapType() == kernel::HeapType::kGuestPhysical && heap.GetHeapBase() == 0;
+}
+
+static rex::memory::PageAccess HostAccessFor(const BaseHeap& heap, u32 protect) {
+  return IsRawPhysicalView(heap) ? rex::memory::PageAccess::kReadWrite : ToPageAccess(protect);
 }
 
 u32 FromPageAccess(rex::memory::PageAccess protect) {
@@ -972,7 +985,7 @@ bool BaseHeap::ReapplyHostPageAccess(void* host_address, bool is_write) {
 
 bool BaseHeap::SyncHostPageAccess(u32 start_page_number, u32 end_page_number) {
   const u32 host_page_size = memory_->system_page_size_;
-  if (page_size_ >= host_page_size) {
+  if (page_size_ >= host_page_size || IsRawPhysicalView(*this)) {
     return true;
   }
 
@@ -1189,9 +1202,9 @@ bool BaseHeap::AllocFixedLocked(u32 base_address, u32 size, u32 alignment, u32 a
     auto alloc_type = (allocation_type & kernel::kMemoryAllocationCommit)
                           ? rex::memory::AllocationType::kCommit
                           : rex::memory::AllocationType::kReserve;
-    void* result =
-        rex::memory::AllocFixed(TranslateRelative(start_page_number << page_size_shift_),
-                                page_count << page_size_shift_, alloc_type, ToPageAccess(protect));
+    void* result = rex::memory::AllocFixed(TranslateRelative(start_page_number << page_size_shift_),
+                                           page_count << page_size_shift_, alloc_type,
+                                           HostAccessFor(*this, protect));
     if (!result) {
       memory_->ReleaseBudgetPages(title_pages);
       REXSYS_FAIL(false, "BaseHeap::AllocFixed failed to alloc range from host");
@@ -1344,9 +1357,9 @@ bool BaseHeap::AllocRangeLocked(u32 low_address, u32 high_address, u32 size, u32
     auto alloc_type = (allocation_type & kernel::kMemoryAllocationCommit)
                           ? rex::memory::AllocationType::kCommit
                           : rex::memory::AllocationType::kReserve;
-    void* result =
-        rex::memory::AllocFixed(TranslateRelative(start_page_number << page_size_shift_),
-                                page_count << page_size_shift_, alloc_type, ToPageAccess(protect));
+    void* result = rex::memory::AllocFixed(TranslateRelative(start_page_number << page_size_shift_),
+                                           page_count << page_size_shift_, alloc_type,
+                                           HostAccessFor(*this, protect));
     if (!result) {
       memory_->ReleaseBudgetPages(title_pages);
       REXSYS_FAIL(false, "BaseHeap::Alloc failed to alloc range from host");
@@ -1441,7 +1454,7 @@ bool BaseHeap::ReleaseLocked(u32 base_address, u32* out_region_size) {
   if (page_size_ == rex::memory::GetPageSize() ||
       ((base_page_entry.region_page_count << page_size_shift_) % rex::memory::GetPageSize() == 0 &&
        ((base_page_number << page_size_shift_) % rex::memory::GetPageSize() == 0))) {
-    if (GetRuntimeSettings().protect_on_release.Get()) {
+    if (GetRuntimeSettings().protect_on_release.Get() && !IsRawPhysicalView(*this)) {
       if (!rex::memory::Protect(TranslateRelative(base_page_number << page_size_shift_),
                                 base_page_entry.region_page_count << page_size_shift_,
                                 rex::memory::PageAccess::kNoAccess, nullptr)) {
@@ -1510,7 +1523,7 @@ bool BaseHeap::ReleaseRangeLocked(u32 address, u32 size, u32* out_address, u32* 
   if (page_size_ == rex::memory::GetPageSize() ||
       (range_bytes % rex::memory::GetPageSize() == 0 &&
        ((first_page << page_size_shift_) % rex::memory::GetPageSize() == 0))) {
-    if (GetRuntimeSettings().protect_on_release.Get()) {
+    if (GetRuntimeSettings().protect_on_release.Get() && !IsRawPhysicalView(*this)) {
       if (!rex::memory::Protect(TranslateRelative(first_page << page_size_shift_), range_bytes,
                                 rex::memory::PageAccess::kNoAccess, nullptr)) {
         REXSYS_WARN("BaseHeap::ReleaseRange failed due to host VirtualProtect failure");
@@ -1612,7 +1625,7 @@ bool BaseHeap::ProtectLocked(u32 address, u32 size, u32 protect, u32* old_protec
   }
 
   // Guest pages smaller than host pages are reconciled after the page table update.
-  if (page_size_ >= memory_->system_page_size_) {
+  if (page_size_ >= memory_->system_page_size_ && !IsRawPhysicalView(*this)) {
     const u32 page_count = end_page_number - start_page_number + 1;
     memory::PageAccess old_protect_access;
     if (!rex::memory::Protect(TranslateRelative(start_page_number << page_size_shift_),

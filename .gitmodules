@@ -45,3 +45,9 @@
 [submodule "thirdparty/tlsf"]
 	path = thirdparty/tlsf
 	url = https://github.com/mattconte/tlsf.git
+[submodule "thirdparty/VulkanMemoryAllocator"]
+	path = thirdparty/VulkanMemoryAllocator
+	url = https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git
+[submodule "thirdparty/Vulkan-Headers"]
+	path = thirdparty/Vulkan-Headers
+	url = https://github.com/KhronosGroup/Vulkan-Headers.git

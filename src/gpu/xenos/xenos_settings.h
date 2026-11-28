@@ -21,6 +21,11 @@ namespace rex::gpu {
 class XenosSettings : public SettingOwner {
  public:
   REX_SETTING(bool, present_letterbox, true, "Keep the title's aspect ratio when presenting");
+  REX_SETTING(std::string, present_aspect, "",
+              "Aspect ratio to present at as W:H, such as 16:9, instead of the video mode's. "
+              "Empty keeps the video mode's. Title code can set it while content of another "
+              "ratio shows",
+              kNoSave);
   REX_SETTING(i32, present_safe_area_x, 90, "Horizontal title safe area percent", Range{50, 100});
   REX_SETTING(i32, present_safe_area_y, 90, "Vertical title safe area percent", Range{50, 100});
   REX_SETTING(bool, present_dither, false, "Dither when presenting to an 8 bit swap chain");
@@ -36,7 +41,7 @@ class XenosSettings : public SettingOwner {
   REX_SETTING(bool, allow_invalid_fetch_constants, false, "Allow invalid fetch constants");
   REX_SETTING(std::string, dump_shaders, "", "Path to dump shaders to");
   REX_SETTING(std::string, swap_post_effect, "none", "Swap post effect",
-              Allowed("none", "fxaa", "fxaa_extreme"), kRestart);
+              Allowed("none", "fxaa", "fxaa_extreme"), kRequiresRestart);
   REX_SETTING(bool, store_shaders, true,
               "Keep compiled shaders on disk and load them on later runs to avoid stutter");
   REX_SETTING(bool, mrt_edram_used_range_clamp_to_min, true,
@@ -45,11 +50,12 @@ class XenosSettings : public SettingOwner {
               "Execute the unclipped draw vertex shader on the CPU for the pixel shader interlock "
               "render backend");
   REX_SETTING(i32, texture_cache_memory_limit_render_to_texture, 24,
-              "Texture cache memory limit for render to texture (MB)", Range{1, 256}, kRestart);
+              "Texture cache memory limit for render to texture (MB)", Range{1, 256},
+              kRequiresRestart);
   REX_SETTING(i32, texture_cache_memory_limit_soft, 384, "Soft texture cache memory limit (MB)",
-              Range{64, 4096}, kRestart);
+              Range{64, 4096}, kRequiresRestart);
   REX_SETTING(i32, texture_cache_memory_limit_hard, 768, "Hard texture cache memory limit (MB)",
-              Range{128, 8192}, kRestart);
+              Range{128, 8192}, kRequiresRestart);
   REX_SETTING(i32, texture_cache_memory_limit_soft_lifetime, 30,
               "Soft texture cache memory limit lifetime (seconds)", Range{1, 3600});
   REX_SETTING(bool, pre_mask_resolve_l2_block, true,
@@ -65,7 +71,7 @@ class XenosSettings : public SettingOwner {
   REX_SETTING(bool, half_pixel_offset, true, "Enable half pixel offset");
   REX_SETTING(bool, resolve_resolution_scale_fill_half_pixel_offset, true,
               "Fill half pixel offset during resolution scale resolve");
-  REX_SETTING(bool, execute_unclipped_draw_vs_on_cpu, false,
+  REX_SETTING(bool, execute_unclipped_draw_vs_on_cpu, true,
               "Execute the unclipped draw vertex shader on the CPU");
   REX_SETTING(bool, execute_unclipped_draw_vs_on_cpu_with_scissor, false,
               "Execute the unclipped draw vertex shader on the CPU with scissor");

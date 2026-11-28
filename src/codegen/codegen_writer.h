@@ -33,8 +33,10 @@ class CodegenWriter {
    * Runs the output pipeline of validate, generate, flush and sweep.
    *
    * @param force Rewrite outputs whose content is unchanged
+   * @param threads Threads that generate the function bodies, 0 for the hardware thread count
+   * @return True when every output was written
    */
-  bool Write(bool force);
+  bool Write(bool force, u32 threads = 0);
 
   /**
    * Returns the basenames of stale outputs removed by the sweep that follows the flush.

@@ -106,6 +106,19 @@ install(
   EXPORT rexglueTargets
   RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} CONFIGURATIONS Release
 )
+# The tool includes the GNU binutils PowerPC disassembler and is distributed under GPL 2.0 or later.
+install(
+  FILES docs/licenses/disasm/COPYING
+  DESTINATION ${CMAKE_INSTALL_BINDIR}
+  CONFIGURATIONS Release
+  RENAME rexglue-COPYING.txt
+)
+install(
+  FILES src/rexglue/NOTICE
+  DESTINATION ${CMAKE_INSTALL_BINDIR}
+  CONFIGURATIONS Release
+  RENAME rexglue-NOTICE.txt
+)
 
 # Install public headers
 install(DIRECTORY include/rex DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
@@ -126,6 +139,80 @@ install(FILES thirdparty/imgui/imgui.h thirdparty/imgui/imconfig.h thirdparty/im
               thirdparty/imgui/imstb_rectpack.h thirdparty/imgui/imstb_textedit.h
               thirdparty/imgui/imstb_truetype.h DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
+
+# The license files of what the install includes, as the page appendix/third-party.md lists them.
+set(_licenses licenses)
+install(FILES thirdparty/libmspack/libmspack/COPYING.LIB DESTINATION ${_licenses}/libmspack)
+install(FILES thirdparty/glslang/LICENSE.txt DESTINATION ${_licenses}/glslang)
+install(FILES thirdparty/FFmpeg/COPYING.LGPLv2.1 thirdparty/FFmpeg/LICENSE.md
+        DESTINATION ${_licenses}/FFmpeg
+)
+install(FILES thirdparty/tomlplusplus/LICENSE DESTINATION ${_licenses}/tomlplusplus)
+install(FILES thirdparty/simde/COPYING DESTINATION ${_licenses}/simde)
+install(FILES thirdparty/xxHash/LICENSE DESTINATION ${_licenses}/xxHash)
+install(FILES thirdparty/imgui/LICENSE.txt DESTINATION ${_licenses}/imgui)
+install(FILES thirdparty/cli11/LICENSE DESTINATION ${_licenses}/cli11)
+install(FILES thirdparty/sdl3/LICENSE.txt DESTINATION ${_licenses}/SDL3)
+if (NOT WIN32 OR MINGW)
+  # SDL installs a second copy of its license under the data folder here. The copy above is the
+  # one the install keeps.
+  install(
+    CODE "
+    set(_sdl_copy \"\$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_DATAROOTDIR}/licenses\")
+    file(REMOVE_RECURSE \"\${_sdl_copy}/SDL3\")
+    file(GLOB _sdl_left \"\${_sdl_copy}/*\")
+    if (NOT _sdl_left)
+      file(REMOVE_RECURSE \"\${_sdl_copy}\")
+    endif ()
+    get_filename_component(_sdl_data \"\${_sdl_copy}\" DIRECTORY)
+    file(GLOB _sdl_left \"\${_sdl_data}/*\")
+    if (NOT _sdl_left)
+      file(REMOVE_RECURSE \"\${_sdl_data}\")
+    endif ()
+    "
+  )
+endif ()
+install(FILES thirdparty/inja/LICENSE DESTINATION ${_licenses}/inja)
+install(FILES thirdparty/excrypt/LICENSE DESTINATION ${_licenses}/excrypt)
+install(FILES thirdparty/spdlog/LICENSE DESTINATION ${_licenses}/spdlog)
+install(FILES thirdparty/VulkanMemoryAllocator/LICENSE.txt
+        DESTINATION ${_licenses}/VulkanMemoryAllocator
+)
+install(FILES thirdparty/Vulkan-Headers/LICENSE.md thirdparty/Vulkan-Headers/LICENSES/Apache-2.0.txt
+              thirdparty/Vulkan-Headers/LICENSES/MIT.txt DESTINATION ${_licenses}/Vulkan-Headers
+)
+install(
+  FILES docs/licenses/disasm/COPYING
+  DESTINATION ${_licenses}/disasm
+  CONFIGURATIONS Release
+)
+if (REXGLUE_ENABLE_TRACY)
+  install(FILES thirdparty/tracy/LICENSE DESTINATION ${_licenses}/tracy)
+endif ()
+install(FILES LICENSE DESTINATION ${_licenses})
+install(FILES thirdparty/inja/third_party/include/nlohmann/LICENSE.MIT
+        DESTINATION ${_licenses}/nlohmann-json
+)
+install(FILES docs/licenses/tlsf/LICENSE DESTINATION ${_licenses}/tlsf)
+install(FILES docs/licenses/renderdoc/LICENSE DESTINATION ${_licenses}/renderdoc)
+install(FILES docs/licenses/stb/LICENSE DESTINATION ${_licenses}/stb)
+install(FILES docs/licenses/ProggyFonts/LICENSE DESTINATION ${_licenses}/ProggyFonts)
+if (REXGLUE_GPU_D3D12)
+  install(FILES docs/licenses/dxbc/LICENSE DESTINATION ${_licenses}/dxbc)
+  install(FILES docs/licenses/dxc/LICENSE.TXT DESTINATION ${_licenses}/dxc)
+endif ()
+if (APPLE)
+  install(
+    DIRECTORY docs/licenses/Vulkan-Loader/
+    DESTINATION ${_licenses}/Vulkan-Loader
+    CONFIGURATIONS Release
+  )
+  install(
+    FILES docs/licenses/MoltenVK/LICENSE
+    DESTINATION ${_licenses}/MoltenVK
+    CONFIGURATIONS Release
+  )
+endif ()
 
 if (APPLE)
   install(
@@ -186,36 +273,36 @@ install(
   DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/rexglue
 )
 
-if (REXGLUE_REGISTER_PACKAGE)
-  # Register in the CMake User Package Registry after install when REXGLUE_REGISTER_PACKAGE is ON.
-  # This makes find_package(rexglue) work with no REXSDK env var or CMAKE_PREFIX_PATH.
-  # Multiple SxS installs coexist. Each prefix gets a unique hash entry.
-  # Windows keeps it in HKCU\Software\Kitware\CMake\Packages\rexglue (REG_SZ, value name = MD5 hash)
-  # Unix keeps it in ~/.cmake/packages/rexglue/<hash> (file containing prefix path)
-  install(
-    CODE [[
-      # Normalize path casing on Windows before hashing to avoid duplicate entries
-      if(CMAKE_HOST_WIN32)
-          string(TOLOWER "${CMAKE_INSTALL_PREFIX}" _reg_key)
-      else()
-          set(_reg_key "${CMAKE_INSTALL_PREFIX}")
-      endif()
-      string(MD5 _hash "${_reg_key}")
+# Register in the CMake User Package Registry after install.
+# This makes find_package(rexglue) work with no REXSDK env var or CMAKE_PREFIX_PATH.
+# Multiple SxS installs coexist. Each prefix gets a unique hash entry.
+# Windows keeps it in HKCU\Software\Kitware\CMake\Packages\rexglue (REG_SZ, value name = MD5 hash)
+# Unix keeps it in ~/.cmake/packages/rexglue/<hash> (file containing prefix path)
+install(
+  CODE [[
+    # A relative prefix, as in cmake --install --prefix ../x, is made absolute against the folder
+    # the install runs from. Windows paths are lower cased before hashing to avoid duplicates.
+    cmake_path(ABSOLUTE_PATH CMAKE_INSTALL_PREFIX NORMALIZE OUTPUT_VARIABLE _reg_prefix)
+    if(CMAKE_HOST_WIN32)
+        string(TOLOWER "${_reg_prefix}" _reg_key)
+    else()
+        set(_reg_key "${_reg_prefix}")
+    endif()
+    string(MD5 _hash "${_reg_key}")
 
-      if(CMAKE_HOST_WIN32)
-          # Windows CMake User Package Registry is stored in HKCU (not the filesystem)
-          set(_reg_root "HKCU\\Software\\Kitware\\CMake\\Packages\\rexglue")
-          execute_process(
-              COMMAND reg add "${_reg_root}" /v "${_hash}" /t REG_SZ /d "${CMAKE_INSTALL_PREFIX}" /f
-              OUTPUT_QUIET ERROR_QUIET
-          )
-      else()
-          set(_reg_dir "$ENV{HOME}/.cmake/packages/rexglue")
-          file(MAKE_DIRECTORY "${_reg_dir}")
-          file(WRITE "${_reg_dir}/${_hash}" "${CMAKE_INSTALL_PREFIX}")
-      endif()
-      message(STATUS "Registered rexglue in CMake user package registry")
-      message(STATUS "  -> ${CMAKE_INSTALL_PREFIX}")
-  ]]
-  )
-endif ()
+    if(CMAKE_HOST_WIN32)
+        # Windows CMake User Package Registry is stored in HKCU (not the filesystem)
+        set(_reg_root "HKCU\\Software\\Kitware\\CMake\\Packages\\rexglue")
+        execute_process(
+            COMMAND reg add "${_reg_root}" /v "${_hash}" /t REG_SZ /d "${_reg_prefix}" /f
+            OUTPUT_QUIET ERROR_QUIET
+        )
+    else()
+        set(_reg_dir "$ENV{HOME}/.cmake/packages/rexglue")
+        file(MAKE_DIRECTORY "${_reg_dir}")
+        file(WRITE "${_reg_dir}/${_hash}" "${_reg_prefix}")
+    endif()
+    message(STATUS "Registered rexglue in CMake user package registry")
+    message(STATUS "  -> ${_reg_prefix}")
+]]
+)

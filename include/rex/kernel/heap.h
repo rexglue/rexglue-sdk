@@ -67,11 +67,14 @@ namespace rex::kernel {
 class GuestAllocator;
 class GuestAddressSpace;
 class WorkspaceHeap;
+class KernelPool;
 
-/** Selects the heap that SystemHeapAlloc takes memory from. */
+/** Selects the heap that SystemHeapAlloc takes memory from and what it counts the pages as. */
 enum SystemHeapFlag : u8 {
   kSystemHeapVirtual = 1 << 0,
   kSystemHeapPhysical = 1 << 1,
+  /** Counts the pages against the title budget. */
+  kSystemHeapTitle = 1 << 2,
 
   kSystemHeapDefault = kSystemHeapVirtual,
 };
@@ -597,6 +600,9 @@ class REX_KERNEL_API GuestAddressSpace : public ISystemHeap {
   GuestAddressSpace();
   ~GuestAddressSpace();
 
+  /** Returns the kernel pool behind ExAllocatePoolTypeWithTag and the kernel object blocks. */
+  KernelPool& GetPool() const { return *pool_; }
+
   /**
    * Initializes the memory system.
    *
@@ -726,7 +732,8 @@ class REX_KERNEL_API GuestAddressSpace : public ISystemHeap {
 
   /**
    * Allocates virtual memory from the system heap, kept apart from title memory but reachable with
-   * normal guest virtual addresses.
+   * normal guest virtual addresses. The heap commits whole 4 KiB pages. With kSystemHeapTitle the
+   * budget counts each page that the call commits, and a free returns the same pages.
    *
    * @param system_heap_flags SystemHeapFlag bits.
    */
@@ -782,13 +789,13 @@ class REX_KERNEL_API GuestAddressSpace : public ISystemHeap {
   void PlotProfile();
 
   /**
-   * Initializes the per module function dispatch table at IMAGE_BASE + IMAGE_SIZE, indexed by
-   * (guest_addr - code_base) * 2. The function table calls are internally locked and may be made
-   * from any thread.
+   * Initializes the per module function dispatch table at table_base (IMAGE_BASE + IMAGE_SIZE
+   * unless the module's config places it), indexed by (guest_addr - code_base) * 2. The function
+   * table calls are internally locked and may be made from any thread.
    *
    * @param code_base The first guest address of the code.
    */
-  bool InitializeFunctionTable(u32 code_base, u32 code_size, u32 image_base, u32 image_size);
+  bool InitializeFunctionTable(u32 code_base, u32 code_size, u32 table_base);
   /**
    * Removes the function table of a module and releases its pages.
    *
@@ -888,6 +895,7 @@ class REX_KERNEL_API GuestAddressSpace : public ISystemHeap {
   std::vector<std::unique_ptr<std::pair<PhysicalMemoryInvalidationCallback, void*>>>
       physical_memory_invalidation_callbacks_;
   std::atomic<u32> title_pages_{0};
+  std::unique_ptr<KernelPool> pool_;
   std::atomic<u32> budget_pages_{0};
   std::mutex allocators_mutex_;
   std::vector<GuestAllocator*> allocators_;      /**< Every live guest allocator, for the plots. */

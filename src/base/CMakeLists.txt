@@ -179,6 +179,8 @@ if (REXGLUE_ENABLE_TRACY)
   target_compile_definitions(rexbase PUBLIC $<$<NOT:$<CONFIG:Release>>:REXGLUE_ENABLE_PROFILING>)
 endif ()
 
+target_compile_definitions(rexbase PUBLIC $<$<CONFIG:Debug>:REXGLUE_LOCK_RANK_CHECKS>)
+
 if (REXGLUE_ENABLE_PERF_COUNTERS)
   target_sources(rexbase PRIVATE perf/counter.cpp)
   target_compile_definitions(

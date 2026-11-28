@@ -1271,17 +1271,56 @@ u32 XeKeysHmacShaUsingKey_entry(MappedVoid obscured_key, MappedVoid inp_1, u32 i
   return X_STATUS_SUCCESS;
 }
 
-u32 XeKeysConsolePrivateKeySign_entry([[maybe_unused]] MappedVoid hash,
-                                      [[maybe_unused]] MappedVoid signature) {
-  REX_KERNEL_STUB("XeKeysConsolePrivateKeySign");
-  return 0;
+/** Certificate of the console that signs, laid out as the console certificate. */
+struct ConsoleCertificate {
+  be_u16 cert_size;            /**< Size of the certificate. */
+  u8 console_id[5];            /**< Console id with the manufacture month, year and MAC bytes. */
+  u8 console_part_number[11];  /**< Part number text. */
+  u8 reserved[4];              /**< Reserved. */
+  be_u16 privileges;           /**< Privilege bits. */
+  be_u32 console_type;         /**< Console type. */
+  u8 manufacture_date[8];      /**< Manufacture date digits. */
+  u8 console_public_key[0x84]; /**< Public exponent and modulus of the console key. */
+  u8 signature[0x100];         /**< Signature of the certificate. */
+};
+REX_STATIC_ASSERT_SIZE(ConsoleCertificate, 0x1A8);
+
+/** Console type the certificate reports. */
+constexpr u32 kConsoleType = 2;
+
+/**
+ * Fills a fixed console certificate. The hash is not signed and the signature stays zero.
+ *
+ * @param hash The hash to sign.
+ * @param output Receives the certificate.
+ * @return 1 (BOOL TRUE) when both pointers are set, 0 otherwise.
+ */
+u32 XeKeysConsolePrivateKeySign_entry(MappedVoid hash,
+                                      rex::memory::MappedPtr<ConsoleCertificate> output) {
+  if (!hash || !output) {
+    return 0;
+  }
+  *output = ConsoleCertificate{};
+  constexpr u8 kConsoleId[5] = {0x93, 0x01, 0x64, 0xE6, 0x07};
+  constexpr u8 kManufactureDate[8] = {2, 0, 0, 5, 1, 1, 2, 2};
+  std::ranges::copy(kConsoleId, output->console_id);
+  output->console_type = kConsoleType;
+  std::ranges::copy(kManufactureDate, output->manufacture_date);
+  return 1;
 }
 
+/**
+ * Accepts every console signature.
+ *
+ * @param hash The signed hash.
+ * @param signature The signature.
+ * @param pubkey The public key.
+ * @return 1 (BOOL TRUE).
+ */
 u32 XeKeysConsoleSignatureVerification_entry([[maybe_unused]] MappedVoid hash,
                                              [[maybe_unused]] MappedVoid signature,
                                              [[maybe_unused]] MappedVoid pubkey) {
-  REX_KERNEL_STUB("XeKeysConsoleSignatureVerification");
-  return 0;
+  return 1;
 }
 
 REX_EXPORT_STUB(__imp__XeKeysGetConsoleCertificate);

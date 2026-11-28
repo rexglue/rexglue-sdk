@@ -33,12 +33,12 @@ class REX_HID_API InputSettings final : public SettingOwner {
   InputSettings();
 
   REX_SETTING(std::string, drivers, "sdl3", "Input drivers in priority order, comma separated",
-              kStartupOnly);
-  REX_SETTING(bool, shared_pads, false, "Every pad feeds user 0", kStartupOnly);
+              kInitOnly);
+  REX_SETTING(bool, shared_pads, false, "Every pad feeds user 0", kInitOnly);
   REX_SETTING(bool, vibration, true, "Allow vibration");
   REX_SETTING(bool, guide_button, false, "Pass the guide button to the title");
-  REX_SETTING(f64, left_stick_deadzone, 0.0, "Left stick deadzone", Range{0.0, 1.0});
-  REX_SETTING(f64, right_stick_deadzone, 0.0, "Right stick deadzone", Range{0.0, 1.0});
+  REX_SETTING(f64, left_stick_deadzone, 0.0, "Left stick deadzone", Range{0.0, 0.99});
+  REX_SETTING(f64, right_stick_deadzone, 0.0, "Right stick deadzone", Range{0.0, 0.99});
   REX_SETTING(bool, mnk_mode, false, "Keyboard and mouse act as a pad");
   REX_SETTING(bool, mnk_mouse, false, "The mouse moves the right stick");
   REX_SETTING(f64, mnk_sensitivity, 1.0, "Mouse to stick sensitivity", Range{0.01, 100.0});
@@ -51,7 +51,7 @@ class REX_HID_API InputSettings final : public SettingOwner {
  * one when nothing else is present. Without input capture only the keyboard and mouse source reads
  * neutral, and AcquireUIBlock makes every user neutral. Any thread.
  */
-REX_DECLARE_INTERFACE(IInputSystem, 2)
+REX_DECLARE_INTERFACE(IInputSystem, 4)
   static constexpr u32 kMaxUsers = 4;
 
   /** The user value for GetKeystroke that takes a keystroke from any user. */
@@ -71,6 +71,16 @@ REX_DECLARE_INTERFACE(IInputSystem, 2)
    * @return The reading, or kNotFound when no pad is assigned to the user.
    */
   [[nodiscard]] virtual Result<PadReading> GetState(u32 user) = 0;
+
+  /**
+   * Returns the pad buttons that went down since the last call, and clears them. A press and
+   * release between two reads is kept. Guide masking and shared_pads follow GetState. While a UI
+   * block is held the result is 0 and the presses made then are dropped. One consumer takes them.
+   *
+   * @param user Slot 0 to 3.
+   * @return The button bits of PadButton, or kNotFound when no pad is assigned to the user.
+   */
+  [[nodiscard]] virtual Result<u16> TakePadPresses(u32 user) = 0;
 
   /**
    * Returns the capabilities of a user's pad, with the guide bit cleared when guide_button is off,

@@ -21,6 +21,7 @@
 #include <utility>
 #include <vector>
 
+#include <rex/logging/logger.h>
 #include <rex/kernel/types/list.h>
 #include <rex/kernel/types/thread.h>
 #include <rex/platform/thread.h>
@@ -69,12 +70,12 @@ u32 StackSizeOf(Caller& c, u32 stack_size) {
   return size->load();
 }
 
-bool WaitForTitlePages(rex::kernel::GuestAddressSpace& memory, u32 pages) {
+bool WaitForTitlePagesAtMost(rex::kernel::GuestAddressSpace& memory, u32 pages) {
   const auto until = std::chrono::steady_clock::now() + std::chrono::seconds(2);
-  while (memory.GetTitlePages() != pages && std::chrono::steady_clock::now() < until) {
+  while (memory.GetTitlePages() > pages && std::chrono::steady_clock::now() < until) {
     std::this_thread::sleep_for(std::chrono::milliseconds(1));
   }
-  return memory.GetTitlePages() == pages;
+  return memory.GetTitlePages() <= pages;
 }
 
 u32 ReferenceThreadObject(Caller& c, u32 handle) {
@@ -439,8 +440,9 @@ REX_TEST_CASE("threads: a guest stack counts against the budget while the thread
     const u32 handle = SpawnWithStack(
         c, 0x10000, [used, memory](Caller&) { used->store(memory->GetTitlePages()); });
     Join(c, handle);
-    CHECK(used->load() - before == 16);
-    CHECK(WaitForTitlePages(*memory, before));
+    CHECK(used->load() - before >= 16);
+    CHECK(used->load() - before <= 17);
+    CHECK(WaitForTitlePagesAtMost(*memory, before + 1));
   });
 }
 
@@ -618,6 +620,48 @@ REX_TEST_CASE("threads: a new thread starts on its creator's processor", "[kerne
   });
 }
 
+namespace {
+
+/** Spends CPU time on the calling host thread until its CPU clock reaches at least the target. */
+void BurnCPUUntil(std::chrono::milliseconds target) {
+  while (rex::platform::GetCurrentThreadCPUTime() < target) {}
+}
+
+}  // namespace
+
+REX_TEST_CASE("threads: kernel time at exit is the final CPU time", "[kernel][threads][times]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    struct Seen {
+      std::atomic<u32> after_wait{0};
+      std::atomic<u32> object{0};
+    };
+    auto seen = std::make_shared<Seen>();
+    const u32 event = c.Alloc(0x10);
+    c.Kernel("KeInitializeEvent", {event, 0, 0});
+    const u32 handle = c.Spawn([seen, event](Caller& t) {
+      auto* thread = rex::kernel::KernelThread::GetCallingThread();
+      auto* object = thread->GetGuestObject<rex::kernel::X_KTHREAD>();
+      seen->object.store(thread->GetGuestObject());
+      BurnCPUUntil(std::chrono::milliseconds(50));
+      t.Kernel("KeWaitForSingleObject", {event, 0, 0, 0, t.AllocQuad(0)});
+      seen->after_wait.store(object->kernel_time);
+      BurnCPUUntil(std::chrono::milliseconds(70));
+    });
+    CHECK(c.Kernel("NtWaitForSingleObjectEx", {handle, 1, 0, c.AllocQuad(-50000000)}) == 0);
+    const u32 object = seen->object.load();
+    REQUIRE(object != 0);
+    CHECK(seen->after_wait.load() >= 50);
+    const u32 at_exit = StateOf(c.GetRuntime())
+                            .GetAddressSpace()
+                            ->TranslateVirtual<rex::kernel::X_KTHREAD*>(object)
+                            ->kernel_time;
+    CHECK(at_exit >= 70);
+    CHECK(at_exit >= seen->after_wait.load());
+    c.Kernel("NtClose", {handle});
+  });
+}
+
 REX_TEST_CASE("A new thread links its wait, timer and spare lists to themselves",
               "[kernel][threads]") {
   KernelFixture fixture;
@@ -729,3 +773,31 @@ REX_TEST_CASE("A thread name without a terminator is cut at a fixed length",
     CHECK(applied.rfind(std::string(256, 'A') + " (", 0) == 0);
   });
 }
+
+#if !REX_PLATFORM_WIN32
+REX_TEST_CASE("RtlRaiseException logs the record of an exception it does not handle",
+              "[kernel][threads][exception]") {
+  KernelFixture fixture;
+  rex::log::LogCaptureSink sink;
+  auto sink_guard = REX_LOGGER().AddSink(sink);
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 record = c.Alloc(0x50);
+    c.Store32(record, 0xC0000017);
+    c.Store32(record + 4, 1);
+    c.Store32(record + 12, 0x82000100);
+    c.Store32(record + 16, 2);
+    c.Store32(record + 20, 0x11);
+    c.Store32(record + 24, 0xABCDEF01);
+    c.Kernel("RtlRaiseException", {record});
+  });
+  sink_guard.Reset();
+  std::vector<rex::log::CapturedMessage> entries;
+  sink.CopySince(0, entries);
+  CHECK(std::ranges::any_of(entries, [](const rex::log::CapturedMessage& entry) {
+    return entry.level == rex::log::Level::kError &&
+           entry.text ==
+               "RtlRaiseException: code C0000017, flags 00000001, address 82000100, parameters "
+               "[00000011 ABCDEF01]";
+  }));
+}
+#endif

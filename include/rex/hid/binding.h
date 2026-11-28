@@ -70,7 +70,8 @@ struct BindingConfig {
  * separated list of inputs. In a stick row item N fills key half N, an empty item keeps its
  * position, and a whole stick input such as LStick takes no position. Text with a bad item is
  * rejected as a whole and TakeParseErrors names each bad item. Create one with
- * IInputSystem::CreateBindingSet. UI thread only.
+ * IInputSystem::CreateBindingSet. Register and Unregister run on the UI thread, every other call on
+ * any thread. A read right after a write, in a batch or in a change function, sees the new inputs.
  */
 class IBindingSet {
  public:
@@ -94,10 +95,11 @@ class IBindingSet {
    * @param binding The index into the descriptions.
    * @return The inputs in order, empty for an index out of range.
    */
-  [[nodiscard]] virtual std::span<const InputSource> GetSources(size_t binding) const = 0;
+  [[nodiscard]] virtual std::vector<InputSource> GetSources(size_t binding) const = 0;
 
   /**
-   * Replaces one input of a binding, or appends it when the slot is past the end.
+   * Replaces one input of a binding, or appends it when the slot is past the end. Two calls on two
+   * threads both take effect.
    *
    * @param binding The index into the descriptions.
    * @param slot The position in GetSources.

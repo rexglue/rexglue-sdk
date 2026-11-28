@@ -39,7 +39,7 @@ struct AddOptions {
  * Owns every kernel object and maps handle values to them. Handles are 0xF8000000 plus 4 times
  * the slot. The pseudo handle 0xFFFFFFFF translates to 0 and 0xFFFFFFFE to the calling thread.
  */
-REX_DECLARE_INTERFACE(IObjectTable, 2)
+REX_DECLARE_INTERFACE(IObjectTable, 4)
   virtual ~IObjectTable() = default;
 
   /**
@@ -94,9 +94,10 @@ REX_DECLARE_INTERFACE(IObjectTable, 2)
    * Creates a file object over an opened file or directory and gives it its first handle.
    *
    * @param synchronous True when the file was opened for synchronous IO.
+   * @param unbuffered True when the file was opened with no intermediate buffering.
    */
   [[nodiscard]] virtual Result<X_HANDLE> AddFile(std::unique_ptr<filesystem::IFile> file,
-                                                 bool synchronous) = 0;
+                                                 bool synchronous, bool unbuffered) = 0;
 
   /**
    * Opens an object again through a handle. The new handle has its own value and is closed once.

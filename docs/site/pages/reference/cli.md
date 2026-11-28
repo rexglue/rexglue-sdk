@@ -16,19 +16,23 @@ rexglue [global options] <command> [options]
 | [`vfs dump`](#vfs-dump) | Extracts a container file to a folder. |
 | [`recompile-tests`](#recompile-tests) | Writes recompiler tests from PowerPC test programs. |
 
+## License
+
+The `rexglue` tool includes the PowerPC disassembler of GNU binutils (`thirdparty/disasm/ppc-dis.c`), which is licensed under the GNU General Public License version 2 or, at your option, any later version. The `rexglue` tool as a whole is distributed under GPL 2.0 or later. The SDK libraries and the runtime stay under the SDK license, and titles built with the SDK do not link this code. The corresponding source is the public repository [rexglue/rexglue-sdk](https://github.com/rexglue/rexglue-sdk) at the release tag. The install puts the license text in `bin/rexglue-COPYING.txt` and `licenses/disasm/COPYING`, and the notice in `bin/rexglue-NOTICE.txt`. The configure fails when a target other than the codegen library, the `rexglue` tool and the test executables links the disassembler or the codegen library, directly or through other targets.
+
 ## Global Options
 
 Global options go before or after the command name.
 
 | Option | Meaning |
 |---|---|
-| `--version` | Prints the SDK version and exits. |
+| `--version` | Prints the SDK version and the license of the tool, and exits. |
 | `--log-level LEVEL` | Sets the log level to `trace`, `dev`, `debug`, `info`, `warn`, `error`, `critical` or `off`, ignoring case. Any other value fails before the command runs, unless `--verbose` is also passed. The default is `info`. See [Logging](../app/logging.md). |
 | `--log-file PATH` | Appends the log to this file in addition to the terminal. |
 | `-v`, `--verbose` | Sets the level to `trace`. Overrides `--log-level`. |
 | `-f`, `--force` | Overrides the checks of `init` and `codegen`, as listed below. |
 
-With `init`, `--force` replaces an existing `CMakeLists.txt`, `CMakePresets.json` and manifest. With `codegen`, it skips the stamp check, and writes the output even when validation fails, with the validation errors logged as warnings.
+With `init`, `--force` replaces an existing `CMakeLists.txt`, `CMakePresets.json` and manifest. With `codegen`, it regenerates even when nothing changed (see [Steps](#steps)), and writes the output even when validation fails, with the validation errors logged as warnings.
 
 - Color is off when stderr is not a terminal or when `NO_COLOR` is set.
 - The exit code is 0 on success and 1 on failure.
@@ -44,8 +48,10 @@ rexglue codegen [config] [options]
 | Argument | Meaning |
 |---|---|
 | `config` | Points to the manifest file. If it is omitted, codegen searches (see [Finding the manifest](#finding-the-manifest)). |
-| `--target NAME` | Processes this DLL module. Can be repeated. The entrypoint is always processed. |
+| `--target NAME` | Processes only the DLL modules named by the options, and the entrypoint. Can be repeated. Without `--target`, every DLL module of the manifest is processed, which is what the project build does. See [Targets](#targets). |
 | `--ignore-stamp` | Regenerates even when the inputs match the stamp from the last run. |
+| `--depfile PATH` | Writes the inputs of the run to this file in make syntax. Without it no file is written. |
+| `--threads N` | Sets how many threads generate the function bodies, from 0 to 1024. The default 0 uses the hardware thread count. The generated files are the same for every value, so a change does not regenerate. |
 
 ### Finding the Manifest
 
@@ -67,37 +73,39 @@ flowchart TD
 
 ### Targets
 
-`--target` selects a DLL module by its target name. The target name is the file name of the module without its extension, with each `.` and space replaced by `_`, in its original case. Two targeted binaries cannot write to the same `out_directory_path`.
+`--target` selects a DLL module by its target name. The target name is the file name of the module without its extension, with each `.` and space replaced by `_`, in its original case. Two binaries that codegen processes in one run cannot write to the same `out_directory_path`.
 
 ### Limits
 
-The limits bound the analysis passes and the size of the output files. Changing a limit makes the next run regenerate every binary. The project build passes `--max_file_size_bytes` from the CMake variable `REXGLUE_RECOMP_MAX_FILE_SIZE`.
+The limits bound the analysis passes and the size of the output files. A pass stops at its limit with the functions it has found so far. When a function exceeds one of the exception limits, codegen does not use the exception data of that function. Changing a limit makes the next run regenerate every binary. The project build passes `--max_file_size_bytes` from the CMake variable `REXGLUE_RECOMP_MAX_FILE_SIZE`.
 
 | Option | Default | Range | Meaning |
 |---|---|---|---|
-| `--max_discovery_iterations` | 1000 | 1 to 100000 | Discovery passes. |
-| `--max_vtable_iterations` | 100 | 1 to 100000 | Vtable resolution passes. |
-| `--max_resolve_iterations` | 100 | 1 to 100000 | Merge resolution passes. |
+| `--max_discovery_iterations` | 1000 | 1 to 100000 | Maximum number of passes that find functions. |
+| `--max_vtable_iterations` | 100 | 1 to 100000 | Maximum number of passes that find functions through vtables. |
+| `--max_resolve_iterations` | 100 | 1 to 100000 | Maximum number of passes that resolve pending functions in the merge step. |
 | `--backward_scan_limit` | 64 | 1 to 10000 | Instructions scanned backward to find a jump table base. |
-| `--max_jump_table_entries` | 512 | 1 to 100000 | Jump table entries accepted. |
+| `--max_jump_table_entries` | 512 | 1 to 100000 | Largest number of entries that a jump table can have. |
 | `--max_file_size_bytes` | 1048576 | 65536 to 67108864 | Largest generated source file in bytes. |
-| `--max_eh_states` | 100 | 1 to 100000 | C++ exception states per function. |
-| `--max_eh_try_blocks` | 50 | 1 to 100000 | C++ try blocks per function. |
-| `--max_eh_ip_map_entries` | 200 | 1 to 100000 | C++ IP map entries per function. |
-| `--max_seh_scope_entries` | 100 | 1 to 100000 | SEH scope entries per function. |
+| `--max_eh_states` | 100 | 1 to 100000 | Largest number of C++ exception states of one function. |
+| `--max_eh_try_blocks` | 50 | 1 to 100000 | Largest number of C++ try blocks of one function. |
+| `--max_eh_ip_map_entries` | 200 | 1 to 100000 | Largest number of entries in the map from instruction address to exception state of one function. |
+| `--max_seh_scope_entries` | 100 | 1 to 100000 | Largest number of SEH scope table entries of one function. |
 
 ### Steps
 
 1. Skips each binary whose manifest settings, input files, limits and SDK version are unchanged since the last run, and whose generated files all exist. `--ignore-stamp` and `--force` turn off the skip.
 2. Analyzes each binary that is not skipped. If validation fails, codegen stops before it writes any generated file, unless `--force` is passed.
 3. Writes the files of each analyzed binary. A file whose content is unchanged keeps its time stamp. Codegen removes the generated files that the run no longer writes.
-4. Writes `codegen.stamp` in each output folder, and `codegen.d` and `codegen.build.stamp` in the entrypoint folder.
+4. Writes `codegen.stamp` in each output folder, which holds the fingerprint of the inputs of that binary and the list of its files for the skip in step 1, and `codegen.build.stamp` in the entrypoint folder, which holds the fingerprints of all binaries and is the output file that the depfile names. With `--depfile PATH` it writes the inputs of the run to that file in make syntax. The build passes a file in the build folder.
 5. Scans the `src` folder next to the manifest, and lists each file and line that includes a header that this run removed.
 6. Writes the SDK version into `[project].sdk_version` and logs a summary, such as:
 
     ```
     Codegen summary: 12 written, 3 unchanged, 0 deleted, 1 module(s) up to date
     ```
+
+    The last count is the number of binaries that step 1 skipped.
 
 ## `init`
 
@@ -114,24 +122,28 @@ rexglue init --project-name NAME --xex-path PATH [options]
 | `--game-root PATH` | Sets the game assets folder. The default is the XEX folder. |
 | `--project-root PATH` | Sets the folder to create the project in. The default is the current directory. |
 | `--scan-dll` | Scans the game root and its subfolders for `.dll` files and adds each one as a `[[modules]]` entry. |
-| `--template-dir PATH` | Points to a folder of templates that replace the built in templates. |
+| `--template-dir PATH` | Points to a folder of `.inja` template files. A file replaces the built in template with the same path, such as `init/manifest_module.inja`, for the files that `init` writes. For codegen, set `template_dir` in the manifest. |
+
+The manifest holds the XEX, the game root and each DLL as paths relative to the project. When one of them has no relative path, such as a file on another disk, `init` stops with an error that names the file and the project folder and writes nothing.
 
 `init` writes these files, shown for the project name `foobar`:
 
-| File | When it is written |
+| File | If the file exists |
 |---|---|
-| `CMakeLists.txt` | Replaced only with `--force`. |
-| `CMakePresets.json` | Replaced only with `--force`. |
-| `foobar_manifest.toml` | Replaced only with `--force`. |
-| `src/main.cpp` | Written once and never replaced. |
-| `src/foobar_hooks.cpp` | Written once and never replaced. |
+| `CMakeLists.txt` | Kept, unless `--force` is passed. |
+| `CMakePresets.json` | Kept, unless `--force` is passed. |
+| `foobar_manifest.toml` | Kept, unless `--force` is passed. |
+| `src/main.cpp` | Always kept. |
+| `src/foobar_hooks.cpp` | Always kept. |
 
 If `CMakeLists.txt`, `CMakePresets.json` or the manifest exists and `--force` is not passed, `init` lists those files and writes nothing.
 
 - `CMakePresets.json` defines the configure presets `win-amd64`, `win-arm64`, `linux-amd64`, `linux-arm64`, `mac-amd64` and `mac-arm64`.
 - Each configure preset has `-debug`, `-release` and `-relwithdebinfo` build presets.
 
-When `rexglue` runs from an installed SDK, the presets set `CMAKE_PREFIX_PATH` to the install folder, so that CMake finds the SDK package. When `rexglue` runs from a build inside the SDK source tree, the presets set `REXSDK_DIR` to the source folder, so that the project builds the SDK from source. See [SDK Discovery](cmake.md#sdk-discovery).
+The presets contain no paths from your machine, so the same project works on every machine. CMake finds an installed SDK through `CMAKE_PREFIX_PATH` and then through the user package registry that the install fills. `init` never writes to the registry. It reads it, and when the installed SDK it runs from is not listed, it prints the folder, the `CMAKE_PREFIX_PATH` environment variable and the `-DCMAKE_PREFIX_PATH=<folder>` argument that point CMake at it.
+
+When `rexglue` runs from a build inside an SDK source tree, the presets get `REXSDK_DIR` as `${sourceDir}/<folder>` if the tree is inside the project, such as a submodule, so that the project builds the SDK from source on every clone. For a source tree outside the project, `init` leaves `REXSDK_DIR` out of the presets and prints the folder and the `-DREXSDK_DIR=<folder>` argument. See [SDK Discovery](cmake.md#sdk-discovery).
 
 ## `init module`
 
@@ -149,10 +161,10 @@ rexglue init module --project-root PATH --xex-path PATH --guest-path PATH
 
 The project root must contain a manifest. The command appends a `[[modules]]` entry with `guest_path`, `file_path`, `out_directory_path` and `includes = []`.
 
-- The output folder is `generated/` and the module name. The module name is the DLL file name without its extension, in lower case, with each `.` and space replaced by `_`.
+- The output folder is `generated/` and the module name. The module name is the DLL file name without its extension, in lower case, with each `.` and space replaced by `_`. This lower case name is only the folder name. `--target` takes the [target name](#targets), which keeps the case of the file name.
 - The guest path must be unique (see [Files and Identity](manifest.md#files-and-identity)).
 - If an entry with the same `file_path` or `guest_path` exists, nothing changes.
-- `rexglue init --template-dir PATH module ...` applies the template folder to the module entry.
+- `rexglue init --template-dir PATH module ...` writes the module entry with the templates of that folder.
 
 ## `init achievements`
 
@@ -200,7 +212,7 @@ The command writes `achievements.toml` with one `[[achievements]]` table per ach
 | `gamerscore` | Gives the score the achievement awards. |
 | `image_id` | Gives the icon ID. |
 | `icon_path` | Gives the icon file path, `icons/<image_id>.png`. |
-| `flags` | Gives the flag bits. |
+| `flags` | Gives the raw flag value of the achievement entry in the XEX, unchanged. |
 
 The icons go to `icons/`, with the game icon as `icons/title.png`. Existing files are overwritten.
 
@@ -215,7 +227,7 @@ rexglue list shim [--group NAME] [--json]
 | Option | Meaning |
 |---|---|
 | `--group NAME` | Lists one group only. |
-| `--json` | Prints an array of objects with `name`, `group`, `stub`, `requires_heap` and `description`. |
+| `--json` | Prints an array of objects with `name`, `group`, `stub`, `requires_heap` and `description`. `stub` is true when the shim returns success without doing the work, and `requires_heap` is true when it needs the shim heap initialized. |
 
 ## `vfs dump`
 

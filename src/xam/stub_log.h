@@ -11,6 +11,8 @@
 
 #pragma once
 
+#include <atomic>
+
 #include <rex/logging/log_category.h>
 
 #include "xam/categories.h"
@@ -25,4 +27,15 @@
  * REX_XAM_STUB("XamSwapDisc({})", disc_number);
  * @endcode
  */
-#define REX_XAM_STUB(FMT, ...) REXXAM_WARN("unimplemented: " FMT __VA_OPT__(, ) __VA_ARGS__)
+#define REX_XAM_STUB(FMT, ...)                                                                 \
+  do {                                                                                         \
+    static constinit ::std::atomic_flag rex_stub_seen_;                                        \
+    const ::rex::log::Level rex_stub_level_ = rex_stub_seen_.test(::std::memory_order_relaxed) \
+                                                  ? ::rex::log::Level::kDev                    \
+                                                  : ::rex::log::Level::kWarn;                  \
+    if (::rex::log::xam.IsEnabled(rex_stub_level_)) {                                          \
+      rex_stub_seen_.test_and_set(::std::memory_order_relaxed);                                \
+      ::rex::log::detail::WriteFormatted(::rex::log::xam, rex_stub_level_,                     \
+                                         "unimplemented: " FMT __VA_OPT__(, ) __VA_ARGS__);    \
+    }                                                                                          \
+  } while (0)

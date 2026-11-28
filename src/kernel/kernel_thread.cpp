@@ -43,6 +43,7 @@
 #include "kernel/delay_observer.h"
 #include "kernel/thread_registry.h"
 #include "kernel/guest_stack.h"
+#include "kernel/kernel_pool.h"
 #include "kernel/settings_access.h"
 #include "kernel/title_state.h"
 
@@ -51,6 +52,13 @@ namespace rex::kernel {
 namespace {
 
 thread_local std::unique_ptr<rex::platform::Thread> t_exiting_thread;
+
+/** Frees a KAPC from the kernel pool, or from the system heap for an APC that EnqueueAPC made. */
+void FreeAPC(GuestAddressSpace* memory, u32 address) {
+  if (!memory->GetPool().Free(address)) {
+    memory->SystemHeapFree(address);
+  }
+}
 
 }  // namespace
 
@@ -83,6 +91,9 @@ KernelThread::KernelThread(TitleRuntime& runtime, u32 stack_size, u32 creation_f
 }
 
 KernelThread::~KernelThread() {
+  if (host_slot_ && !host_slot_->IsEntered()) {
+    host_slot_->Leave();
+  }
   if (main_fiber_) {
     main_fiber_->Destroy();
     main_fiber_ = nullptr;
@@ -357,7 +368,8 @@ X_STATUS KernelThread::Create() {
   const u32 stack_size =
       ResolveGuestStackSize(creation_params_.stack_size, guest_default, kMinimumThreadStackSize);
   Result<GuestStack> stack =
-      AllocateGuestStack(*GetAddressSpace(), stack_size, tls_size, guest_thread_);
+      AllocateGuestStack(*GetAddressSpace(), stack_size, tls_size,
+                         guest_thread_ && !(creation_params_.creation_flags & 2));
   if (!stack) {
     return X_STATUS_NO_MEMORY;
   }
@@ -377,6 +389,8 @@ X_STATUS KernelThread::Create() {
   }
   tls_slot_count_.store(slot_count, std::memory_order_release);
 
+  // The console has no per thread PCR, its KPCR is per processor, so no pool or budget count
+  // matches this block.
   pcr_address_ = GetAddressSpace()->SystemHeapAlloc(0x2D8);
   if (!pcr_address_) {
     REXSYS_WARN("Unable to allocate thread state block");
@@ -442,7 +456,15 @@ X_STATUS KernelThread::Create() {
   rex::platform::Thread::CreationParameters params;
   params.stack_size = 16_MiB;
   params.create_suspended = true;
-  auto thread = rex::platform::Thread::Create(params, [this]() {
+  host_slot_ = std::make_shared<HostSlot>(registry_->GetHostFence());
+  auto thread = rex::platform::Thread::Create(params, [this, slot = host_slot_]() {
+    slot->MarkEntered();
+    // The last statement of the host thread, after the KernelThread may be deleted, so the guard
+    // owns a copy of the slot.
+    struct Leave {
+      std::shared_ptr<HostSlot> slot;
+      ~Leave() { slot->Leave(); }
+    } leave{slot};
     if (abandoned_.load(std::memory_order_acquire)) {
       return;
     }
@@ -511,7 +533,18 @@ void KernelThread::WriteKernelTime() {
   if (!self || !self->guest_object_ptr_) {
     return;
   }
-  self->GetGuestObject<X_KTHREAD>()->kernel_time =
+  const u64 now_ms = static_cast<u64>(std::chrono::duration_cast<std::chrono::milliseconds>(
+                                          std::chrono::steady_clock::now().time_since_epoch())
+                                          .count());
+  if (now_ms == self->kernel_time_written_ms_) {
+    return;
+  }
+  self->kernel_time_written_ms_ = now_ms;
+  self->StoreKernelTime();
+}
+
+void KernelThread::StoreKernelTime() {
+  GetGuestObject<X_KTHREAD>()->kernel_time =
       static_cast<u32>(rex::platform::GetCurrentThreadCPUTime().count());
 }
 
@@ -520,7 +553,7 @@ void KernelThread::WriteExitState(u32 exit_code) {
   thread->terminated = 1;
   thread->thread_state = kKThreadStateTerminated;
   if (IsInThread(this)) {
-    WriteKernelTime();
+    StoreKernelTime();
   }
   thread->exit_time = Clock::QueryGuestSystemTime();
   thread->exit_status = exit_code;
@@ -547,6 +580,7 @@ void KernelThread::Exit(int exit_code) {
 }
 
 void KernelThread::Finish(int exit_code) {
+  StateOf(*runtime_).Flush();
   thread_state_->ClearStop();
   if (!host_fn_ && !StateOf(*runtime_).IsTerminatingTitle()) {
     try {
@@ -779,7 +813,7 @@ void KernelThread::DeliverAPCs() {
                      static_cast<u32>(apc->kernel_routine));
       }
     } else {
-      mem->SystemHeapFree(apc_ptr);
+      FreeAPC(mem, apc_ptr);
     }
 
     u32 normal_routine = args->normal_routine;
@@ -841,7 +875,7 @@ void KernelThread::RundownAPCs() {
       }
 
       if (needs_freeing) {
-        mem->SystemHeapFree(apc_ptr);
+        FreeAPC(mem, apc_ptr);
       }
 
       old_irql = kernel::xboxkrnl::KeKfAcquireSpinLock(*GetAddressSpace(), ctx, &kthread->apc_lock);

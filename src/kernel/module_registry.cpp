@@ -34,6 +34,8 @@ namespace rex::kernel {
 
 namespace {
 
+constexpr std::string_view kGamePartitionPath = "\\Device\\Harddisk0\\Partition1";
+
 bool SameObject(const ObjectPin& a, const ObjectPin& b) {
   return &a.GetKernelObject() == &b.GetKernelObject();
 }
@@ -480,7 +482,8 @@ Result<X_HANDLE> ModuleRegistry::LoadUserModule(std::string_view raw_name, bool 
               xex->GetBaseAddress() + xex->GetImageSize());
         } else if (!StateOf(runtime_).GetFunctionDispatcher()->InitializeFunctionTable(
                        image_info->code_base, image_info->code_size, image_info->image_base,
-                       image_info->image_size)) {
+                       image_info->image_size, /*is_entrypoint=*/false,
+                       image_info->function_table_base)) {
           REXSYS_ERROR("InitializeFunctionTable failed for module '{}'", recomp->pe_name);
         } else {
           StateOf(runtime_).GetFunctionDispatcher()->RegisterModule(
@@ -621,6 +624,11 @@ std::optional<ModuleRegistry::RecompiledModule> ModuleRegistry::FindRecompiledMo
     std::string_view guest_path) {
   std::lock_guard lock(recompiled_mutex_);
   auto normalized = rex::string::NormalizeGuestPath(guest_path);
+  static const std::string kNormalizedPartition =
+      rex::string::NormalizeGuestPath(kGamePartitionPath) + "/";
+  if (normalized.starts_with(kNormalizedPartition)) {
+    normalized.erase(0, kNormalizedPartition.size());
+  }
   for (const auto& info : recompiled_modules_) {
     if (info.guest_path == normalized) {
       return info;

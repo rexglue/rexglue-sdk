@@ -8,18 +8,18 @@ Do not edit the generated files. Each time codegen regenerates a binary, it rewr
 
 Codegen writes each binary into the folder given by the binary's `out_directory_path`, relative to the manifest. Two binaries cannot share a folder. For `foobar`, `rexglue init` sets the entrypoint folder to `generated/default`.
 
-Every C++ file name starts with a prefix, which is `[project].name` for every binary, DLL modules included. The `project_name` key in a [binary table](../reference/manifest.md#binary-tables) sets another prefix for that binary. For `foobar`, the names start with `foobar_`, such as `foobar_pch.h` and the numbered files `foobar_recomp.0.cpp` and up. See [Generated Files](../appendix/generated-files.md) for the purpose of each file.
+Every C++ file name starts with a prefix, which is `[project].name` for every binary, [DLL modules](../reference/glossary.md#dll-module) included. The `project_name` key in a [binary table](../reference/manifest.md#binary-tables) sets another prefix for that binary. For `foobar`, the names start with `foobar_`, such as `foobar_pch.h` and the numbered files `foobar_recomp.0.cpp` and up. See [Generated Files](../appendix/generated-files.md) for the purpose of each file.
 
-The entrypoint folder also holds `codegen.d` and `codegen.build.stamp`, which the build uses to rerun codegen. When the manifest lists `[[modules]]`, it holds `module_registry.cpp` and `dll_targets.cmake` too.
+The entrypoint folder holds `codegen.build.stamp`, which the build uses to rerun codegen. When the manifest lists `[[modules]]`, it holds `module_registry.cpp` and `dll_targets.cmake` too.
 
-- To replace a built in template for the headers, the init file, the register file or `sources.cmake`, add a file `codegen/` plus the template name and `.inja`, such as `codegen/pch_h.inja`, to the folder that the manifest key `template_dir` points to.
+- To replace a built in template for the headers, the init file, the registration file (`foobar_register.cpp`) or `sources.cmake`, add a file `codegen/` plus the template name and `.inja`, such as `codegen/pch_h.inja`, to the folder that the manifest key `template_dir` points to.
 - The templates for `module_registry.cpp` and `dll_targets.cmake` cannot be replaced.
 
 ### The Precompiled Header
 
 `foobar_pch.h` is the precompiled header of the generated sources. It defines:
 
-- the image constants `REX_IMAGE_BASE`, `REX_IMAGE_SIZE`, `REX_CODE_BASE` and `REX_CODE_SIZE`, the guest address and size of the loaded image and of its code
+- the image constants `REX_IMAGE_BASE`, `REX_IMAGE_SIZE`, `REX_CODE_BASE` and `REX_CODE_SIZE`, the guest address and size of the loaded image and of its code, and `REX_FUNCTION_TABLE_BASE`, the guest address of the function table
 - a `REX_CONFIG_` define for each register flag that the manifest turns on, such as `REX_CONFIG_SKIP_LR`
 - the macros that generated code uses for functions, memory accesses and calls
 
@@ -41,7 +41,7 @@ DEFINE_REX_FUNC(sub_82010000) {
 
 `DEFINE_REX_FUNC` defines the body as `__imp__name` and adds a weak symbol `name` that a [hook](hooks.md#weak-symbols) can replace. On Windows and Linux, `name` is a weak alias of `__imp__name`. Mach-O on macOS has no overridable alias, so there `name` is a separate weak function that tail calls `__imp__name`.
 
-Imports and `[shim]` functions have no body in the numbered files. `foobar_funcs.h` declares them, and `foobar_register.cpp` defines each import from another recompiled module.
+Imports and `[shim]` functions have no body in the numbered files. A [shim](../runtime/shims.md) is an SDK replacement for a library routine of the game. `foobar_funcs.h` declares them, and `foobar_register.cpp` defines each import from another recompiled module.
 
 ### Names
 
@@ -51,11 +51,13 @@ Codegen names a function that is not an import by the first rule that applies:
 |---|---|
 | Shim in `[shim]` | `rexshim_` and the shim name, defined by the SDK |
 | Entry point of a binary, DLL modules included | `xstart` |
-| Named by the manifest or a millicode helper | The given name |
+| A function that the manifest names, or a millicode helper | The manifest name, or the helper name such as `__savegprlr_14` |
 | Any other function | `sub_` and the guest address in upper case hex, such as `sub_82010000` |
 
 - An import of an xboxkrnl, XAM or XBDM function is `__imp__` and the export name, such as `__imp__NtCreateFile`.
 - An import from any other module is `sub_` and the address of its thunk.
+
+The prefix `__imp__` therefore appears in two places. It starts the body of every recompiled function, and it starts the function that the SDK defines for each kernel export.
 
 ### Registers
 
@@ -85,19 +87,19 @@ The GPU and APU registers are memory mapped (MMIO). Guest code reaches them by r
 | APU register, 32 bit | `REX_APU_LOAD32` | `REX_APU_STORE32` |
 | Guarded | `REX_MM_LOAD_U8`, `REX_MM_LOAD_U16`, `REX_MM_LOAD_U32`, `REX_MM_LOAD_U64` | `REX_MM_STORE_U8`, `REX_MM_STORE_U16`, `REX_MM_STORE_U32`, `REX_MM_STORE_U64` |
 
-A guarded access is one that might reach a register block, or an access of a width other than 32 bits to a block. It tests the address at runtime. Outside the blocks it takes the plain path. Inside a block, a 64 bit write is made as two 32 bit writes, and a write narrower than 32 bits ends the process (see [Misses](../runtime/memory.md#misses)). The GPU and APU macros call the handler that the runtime attached to the block (see [Attaching a Recipient](../runtime/memory.md#attaching-a-recipient)).
+A guarded access is one that might reach a register block, or an access of a width other than 32 bits to a block. It tests the address at runtime. Outside the blocks it takes the plain path. Inside a block, a 64 bit write is made as two 32 bit writes, and a write narrower than 32 bits ends the process (see [Misses](../runtime/memory.md#misses)). The GPU and APU macros call the recipient of the block, the host object that implements its registers (see [Attaching a Recipient](../runtime/memory.md#attaching-a-recipient)).
 
-`codegen.mmio.json` lists the loads and stores that reach or might reach a register block, and those in the `0x7F000000` range outside both blocks:
+`codegen.mmio.json` lists the loads and stores that reach or might reach a register block, and those in the `0x7F000000` range outside both blocks. A site is the guest address of one load or store instruction. Each key of the file holds the sites of one kind.
 
-| List | Meaning |
+| Key in `codegen.mmio.json` | Which loads and stores it lists |
 |---|---|
-| Matched | The address is in a register block. |
-| Declared | The manifest lists the site. |
-| Guarded | The address might reach a block. |
-| Unserved | The address is in the `0x7F000000` range, outside both blocks. |
-| Unsupported | The site reaches a block through an instruction that codegen cannot route. The site stays a plain access, and codegen logs an error. |
+| `matched` | The address is in a register block. |
+| `declared` | A `[mmio.gpu]` or `[mmio.apu]` entry of the manifest lists the instruction. |
+| `guarded` | The address might reach a block. |
+| `unserved` | The address is in the `0x7F000000` range, outside both blocks. |
+| `unsupported` | The address is in a register block, but codegen has no access macro for the kind of instruction. The instruction stays a plain access, and codegen logs an error. |
 
-Each `[mmio.gpu]` or `[mmio.apu]` [manifest](../reference/manifest.md#mmio) entry must point to a load or a store that codegen routes to that block, in the matching `read` or `write` array. Codegen fails on any other entry.
+Each `[mmio.gpu]` or `[mmio.apu]` [manifest](../reference/manifest.md#mmio) entry must be the address of a load or store instruction that codegen finds in a function, in the matching `read` or `write` array. Codegen fails when the address is not such an instruction, when a load is listed in `write` or a store in `read`, when the instruction reaches the other block, or when the instruction is listed under `unsupported`.
 
 ### Calls and Branches
 
@@ -108,7 +110,7 @@ Each `[mmio.gpu]` or `[mmio.apu]` [manifest](../reference/manifest.md#mmio) entr
 | `b` to another function | `REX_MUSTTAIL return name(ctx, base);`, except in the cases under [Tail Calls](codegen-pipeline.md#tail-calls) |
 | Conditional branch inside the function | `if` on the condition bit, then `goto`, such as `if (cr0.eq) goto loc_821F0010;` |
 | `bctr` with a jump table | A `switch` over the index register. The default case and a null target are `__builtin_trap()`. |
-| `bctr` with no table | `REX_TAIL_INDIRECT_FUNC` in tail position, otherwise `REX_CALL_INDIRECT_FUNC` and then `return;` |
+| `bctr` with no table | `REX_TAIL_INDIRECT_FUNC` where a tail call is allowed (see [Tail Calls](codegen-pipeline.md#tail-calls)), otherwise `REX_CALL_INDIRECT_FUNC` and then `return;` |
 | `bctrl`, `blrl` | `REX_CALL_INDIRECT_FUNC` |
 | `blr` | `return;` |
 | `bl` to an address with no function | `REXCPU_FATAL` |
@@ -133,13 +135,13 @@ Such a function never keeps non volatile registers in locals. The recompiled sou
 - `kPPCFuncMappings`, the guest address and host function of every import and of every function at or above the code base, ending with `{ 0, nullptr }`.
 - `kPPCCallUsage`, the argument registers, `r3` to `r10` and `f1` to `f13`, that each function reads at entry.
 
-The `src/main.cpp` that `rexglue init` writes includes `foobar_init.h`, passes `kPPCImageConfig` to the `TitleApp` constructor, and declares the app with `REX_TITLE_APP`. [`TitleRuntime::Load`](../runtime/lifecycle.md#load) reads the mappings into the function table. A project created before this name changed has to rename `PPCImageConfig` to `kPPCImageConfig` in its own `src/main.cpp` by hand.
+The `src/main.cpp` that `rexglue init` writes includes `foobar_init.h`, passes `kPPCImageConfig` to the `TitleApp` constructor, and declares the app with `REX_TITLE_APP`. [`TitleRuntime::Load`](../runtime/lifecycle.md#load) reads the mappings into the function table. Earlier SDK versions named this object `PPCImageConfig`. A project created with one of them must rename it to `kPPCImageConfig` in its `src/main.cpp`.
 
 ### Function Table
 
 The function table maps each guest code address to its host function. Every indirect call, such as a call through a function pointer or a vtable, reads it.
 
-- `GuestAddressSpace::InitializeFunctionTable` reserves a zeroed table in guest memory at `REX_IMAGE_BASE + REX_IMAGE_SIZE`, in the `v80000000` heap.
+- `GuestAddressSpace::InitializeFunctionTable` reserves a zeroed table in guest memory at `REX_FUNCTION_TABLE_BASE`, in the `v80000000` heap. It is `REX_IMAGE_BASE + REX_IMAGE_SIZE` unless the manifest sets [`function_table_base`](../reference/manifest.md#function-table).
 - The table is `(code_size + 0x10000) * 2` bytes, an 8 byte host pointer for every 4 byte instruction, with room for `0x10000` bytes of thunks after the code.
 - The slot of a guest address is at `table_base + (address - code_base) * 2`. `GuestAddressSpace::SetFunction` writes a slot.
 
@@ -147,7 +149,7 @@ A call to an address with no slot in the table, or with an empty slot, asks the 
 
 ## Build Integration
 
-The SDK package provides `rexglue_project` and the `rexglue_setup_*` functions, so no generated CMake file is needed. The project's `CMakeLists.txt` calls `rexglue_project`, which defines the codegen target and the settings that connect the generated files to the program. The output folder holds only what codegen writes, so nothing in it needs to be committed.
+The SDK package provides `rexglue_project` and the `rexglue_setup_*` functions, so your `CMakeLists.txt` includes no generated file itself. It calls `rexglue_project`, which reads the generated `sources.cmake` and `dll_targets.cmake` and defines the codegen target and the settings that connect the generated files to the program. The output folder holds only what codegen writes, so nothing in it needs to be committed.
 
 ```mermaid
 flowchart TD
@@ -162,8 +164,8 @@ flowchart TD
     modules -. loaded by .-> exe
 ```
 
-- `foobar_codegen` runs `rexglue codegen`, and reruns it when an input listed in `codegen.d` changes.
-- `sources.cmake` lists the generated `.cpp` files of a binary. A change to it makes CMake configure again.
+- The codegen target, `foobar_codegen`, runs `rexglue codegen`, and reruns it when an input listed in its dependency file in the build folder changes.
+- `sources.cmake` lists the generated `.cpp` files of a binary. A change to it, to `dll_targets.cmake` or to the `sources.cmake` of a DLL module makes CMake configure again.
 - `rexglue_setup_target` builds the entrypoint sources into the object library `foobar_recompiled`, with the precompiled header, and links it into the program.
 - `CMakeLists.txt` builds your hook sources into the object library `foobar_common`, which the program links. See [Weak Symbols](hooks.md#weak-symbols) for why it is an object library.
 - `dll_targets.cmake` defines a shared library for each DLL module, built into the folder of the program, which loads it at runtime.

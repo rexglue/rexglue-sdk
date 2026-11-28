@@ -23,11 +23,11 @@ class REX_API PathSettings final : public SettingOwner {
   PathSettings();
 
   REX_SETTING(std::filesystem::path, config_file, "{app.root}/{app.name}.toml", "Config file",
-              kStartupOnly);
+              kInitOnly);
   REX_SETTING(std::filesystem::path, user_root, "{app.root}/user", "Saves and per player data",
-              kStartupOnly);
+              kInitOnly);
   REX_SETTING(std::filesystem::path, cache_root, "",
-              "Shader and pipeline caches, no shader storage when empty", kStartupOnly);
+              "Shader and pipeline caches, no shader storage when empty", kInitOnly);
 };
 
 /** Returns the path settings. The first call registers them. */

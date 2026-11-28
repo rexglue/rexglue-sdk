@@ -72,13 +72,13 @@ enum class AppPhase : u8 {
  */
 class REX_APP_API App : public SettingOwner {
  public:
-  REX_SETTING(std::string, name, "", "App name, set by the constructor", kStartupOnly, kNoSave);
+  REX_SETTING(std::string, name, "", "App name, set by the constructor", kInitOnly, kNoSave);
   REX_SETTING(std::filesystem::path, root, "",
               "Folder the app keeps its files in, the folder of the executable when empty",
-              kStartupOnly);
-  REX_SETTING(std::filesystem::path, log_root, "{app.root}/logs", "Log folder", kStartupOnly);
+              kInitOnly);
+  REX_SETTING(std::filesystem::path, log_root, "{app.root}/logs", "Log folder", kInitOnly);
   REX_SETTING(std::string, single_instance, "",
-              "Lock name only one running copy may hold, empty for none", kStartupOnly);
+              "Lock name only one running copy may hold, empty for none", kInitOnly);
 
   /**
    * @param name The app name, which names the config file and the log file.
@@ -113,8 +113,8 @@ class REX_APP_API App : public SettingOwner {
   void RequestShutdown();
 
   /**
-   * Asks the app to shut down and start the process again with the same arguments, so kRestart
-   * settings take effect. Any thread.
+   * Asks the app to shut down and start the process again with the same arguments, so
+   * kRequiresRestart settings take effect. Any thread.
    */
   void RequestRestart();
 

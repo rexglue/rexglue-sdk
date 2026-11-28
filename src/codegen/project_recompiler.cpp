@@ -561,7 +561,7 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
     }
     REXCG_TRACE("Writing output for '{}'...", entry.module->target_name);
     CodegenWriter writer(entry.ctx);
-    if (!writer.Write(opts.force)) {
+    if (!writer.Write(opts.force, opts.threads)) {
       return Err<void>(ErrorCategory::kValidation,
                        std::format("Write failed for '{}'", entry.module->target_name));
     }
@@ -600,9 +600,9 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
     all_inputs.erase(std::unique(all_inputs.begin(), all_inputs.end()), all_inputs.end());
 
     auto build_stamp = fs::absolute(build_dir / kBuildStampFileName);
-    if (!WriteDepfile(build_dir / kDepfileName, build_stamp, all_inputs)) {
+    if (!opts.depfile.empty() && !WriteDepfile(opts.depfile, build_stamp, all_inputs)) {
       return Err<void>(ErrorCategory::kIO,
-                       std::format("Failed to write {}", (build_dir / kDepfileName).string()));
+                       std::format("Failed to write {}", opts.depfile.string()));
     }
     std::string stamp_text;
     for (const auto& fingerprint : fingerprints) {

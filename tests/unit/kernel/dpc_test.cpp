@@ -282,6 +282,27 @@ REX_TEST_CASE("KeRemoveQueueDpc removes a queued DPC once", "[kernel][dpc]") {
   });
 }
 
+REX_TEST_CASE("A DPC removed and queued again runs once", "[kernel][dpc]") {
+  Reset();
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 first = BuildDPC(c, &CountingDPC);
+    const u32 second = BuildDPC(c, &CountingDPC);
+    const u32 old_irql = c.Kernel("KeRaiseIrqlToDpcLevel");
+    CHECK(c.Kernel("KeInsertQueueDpc", {first, 0, 0}) == 1);
+    CHECK(c.Kernel("KeInsertQueueDpc", {second, 0, 0}) == 1);
+    CHECK(c.Kernel("KeRemoveQueueDpc", {first}) == 1);
+    CHECK(c.Kernel("KeInsertQueueDpc", {first, 0, 0}) == 1);
+    CHECK(c.Kernel("KeRemoveQueueDpc", {second}) == 1);
+    CHECK(g_runs == 0);
+    c.Kernel("KfLowerIrql", {old_irql});
+    CHECK(g_runs == 1);
+    const u32 raised = c.Kernel("KeRaiseIrqlToDpcLevel");
+    c.Kernel("KfLowerIrql", {raised});
+    CHECK(g_runs == 1);
+  });
+}
+
 REX_TEST_CASE("KeRetireDpcList runs the queue", "[kernel][dpc]") {
   Reset();
   KernelFixture fixture;
@@ -333,7 +354,7 @@ REX_TEST_CASE("The DPC safe calls work inside a DPC", "[kernel][dpc]") {
 
 REX_TEST_CASE("Queueing a DPC that sits in a write watched page keeps the lock order",
               "[kernel][dpc][lock_order]") {
-#ifdef NDEBUG
+#ifndef REXGLUE_LOCK_RANK_CHECKS
   SKIP("lock order is checked in debug builds only");
 #endif
   Reset();

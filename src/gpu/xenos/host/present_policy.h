@@ -1,6 +1,6 @@
 /**
  * @file        gpu/xenos/host/present_policy.h
- * @brief       Present timing decisions that need no GPU
+ * @brief       Present timing and aspect decisions that need no GPU
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -11,9 +11,11 @@
 
 #pragma once
 
+#include <charconv>
 #include <chrono>
 #include <condition_variable>
 #include <mutex>
+#include <string_view>
 
 #include <rex/types.h>
 
@@ -61,12 +63,18 @@ struct VulkanPresentModeSupport {
 };
 
 /**
- * @return FIFO for vsync, otherwise the first allowed of immediate, mailbox and relaxed FIFO, and
- * FIFO when none is allowed.
+ * @return For vsync, the first allowed of mailbox and immediate, otherwise FIFO. Without vsync,
+ * the first allowed of immediate, mailbox and relaxed FIFO, and FIFO when none is allowed.
  */
 constexpr VulkanPresentMode ChooseVulkanPresentMode(bool vsync,
                                                     const VulkanPresentModeSupport& support) {
   if (vsync) {
+    if (support.mailbox) {
+      return VulkanPresentMode::kMailbox;
+    }
+    if (support.immediate) {
+      return VulkanPresentMode::kImmediate;
+    }
     return VulkanPresentMode::kFifo;
   }
   if (support.immediate) {
@@ -79,6 +87,136 @@ constexpr VulkanPresentMode ChooseVulkanPresentMode(bool vsync,
     return VulkanPresentMode::kFifoRelaxed;
   }
   return VulkanPresentMode::kFifo;
+}
+
+/** The largest term of a gpu.xenos.present_aspect ratio, the largest video mode size. */
+inline constexpr u32 kMaxPresentAspectTerm = 0x0FFF;
+
+/** How far gpu.xenos.present_aspect may be from square, 16:1 to 1:16. */
+inline constexpr u32 kMaxPresentAspectSkew = 16;
+
+/**
+ * Parses gpu.xenos.present_aspect, the aspect ratio to present at, into the display size that
+ * Presenter::RefreshGuestOutput takes, which accepts a ratio such as 16:9 as a size.
+ *
+ * @param aspect W:H with two integers from 1 to kMaxPresentAspectTerm, no further from square
+ * than kMaxPresentAspectSkew, such as 16:9.
+ * @return True with the ratio in width_out and height_out, false with both unchanged when aspect
+ * is empty or not such a ratio.
+ */
+inline bool TryParsePresentAspect(std::string_view aspect, u32& width_out, u32& height_out) {
+  const size_t colon = aspect.find(':');
+  if (colon == std::string_view::npos) {
+    return false;
+  }
+  const char* begin = aspect.data();
+  const char* end = begin + aspect.size();
+  u32 x = 0;
+  u32 y = 0;
+  const auto x_result = std::from_chars(begin, begin + colon, x);
+  const auto y_result = std::from_chars(begin + colon + 1, end, y);
+  if (x_result.ec != std::errc() || x_result.ptr != begin + colon || y_result.ec != std::errc() ||
+      y_result.ptr != end) {
+    return false;
+  }
+  if (x < 1 || x > kMaxPresentAspectTerm || y < 1 || y > kMaxPresentAspectTerm ||
+      x > y * kMaxPresentAspectSkew || y > x * kMaxPresentAspectSkew) {
+    return false;
+  }
+  width_out = x;
+  height_out = y;
+  return true;
+}
+
+/** A rectangle in surface pixels. */
+struct PresentRect {
+  i32 x;
+  i32 y;
+  u32 width;
+  u32 height;
+};
+
+/**
+ * Scales an unsigned value by new_scale / old_scale, rounding to nearest.
+ *
+ * @param value The value to scale.
+ * @param new_scale The numerator.
+ * @param old_scale The denominator, not zero.
+ * @return The scaled value.
+ */
+constexpr u32 RescaleUnsigned(u32 value, u32 new_scale, u32 old_scale) {
+  return static_cast<u32>((static_cast<u64>(value) * new_scale + (old_scale >> 1)) / old_scale);
+}
+
+/**
+ * Scales a signed value by new_scale / old_scale, rounding to nearest away from zero.
+ *
+ * @param value The value to scale.
+ * @param new_scale The numerator.
+ * @param old_scale The denominator, not zero.
+ * @return The scaled value.
+ */
+constexpr i32 RescaleSigned(i32 value, u32 new_scale, u32 old_scale) {
+  return static_cast<i32>((static_cast<i64>(value) * new_scale +
+                           static_cast<i64>(old_scale >> 1) * (value < 0 ? -1 : 1)) /
+                          old_scale);
+}
+
+/**
+ * Returns where the guest output sits in the surface for a display aspect ratio.
+ *
+ * @param surface_width The surface width, not zero.
+ * @param surface_height The surface height, not zero.
+ * @param aspect_x The display aspect ratio width term, not zero.
+ * @param aspect_y The display aspect ratio height term, not zero.
+ * @param safe_area_x The horizontal safe area percent, used when allow_overscan_cutoff is set.
+ * @param safe_area_y The vertical safe area percent, used when allow_overscan_cutoff is set.
+ * @param allow_overscan_cutoff True to cut the output off at the safe area.
+ * @param letterbox True to keep the aspect ratio with bars, false to fill the surface.
+ * @return The output rectangle, which may extend past the surface when the cutoff applies.
+ */
+constexpr PresentRect ComputePresentRect(u32 surface_width, u32 surface_height, u32 aspect_x,
+                                         u32 aspect_y, u32 safe_area_x, u32 safe_area_y,
+                                         bool allow_overscan_cutoff, bool letterbox) {
+  PresentRect rect{};
+  if (static_cast<u64>(surface_width) * aspect_y > static_cast<u64>(surface_height) * aspect_x) {
+    u32 safe_area = 100;
+    if (allow_overscan_cutoff && safe_area_y > 0 && safe_area_y < 100) {
+      safe_area = safe_area_y;
+    }
+    rect.height = RescaleUnsigned(surface_width, aspect_y, aspect_x);
+    bool bars = false;
+    if (rect.height * safe_area > surface_height * 100) {
+      rect.height = RescaleUnsigned(surface_height, 100, safe_area);
+      bars = true;
+    }
+    if (bars && letterbox) {
+      rect.width = RescaleUnsigned(surface_height * 100, aspect_x, aspect_y * safe_area);
+      rect.x = (static_cast<i32>(surface_width) - static_cast<i32>(rect.width)) / 2;
+    } else {
+      rect.width = surface_width;
+    }
+    rect.y = (static_cast<i32>(surface_height) - static_cast<i32>(rect.height)) / 2;
+  } else {
+    u32 safe_area = 100;
+    if (allow_overscan_cutoff && safe_area_x > 0 && safe_area_x < 100) {
+      safe_area = safe_area_x;
+    }
+    rect.width = RescaleUnsigned(surface_height, aspect_x, aspect_y);
+    bool bars = false;
+    if (rect.width * safe_area > surface_width * 100) {
+      rect.width = RescaleUnsigned(surface_width, 100, safe_area);
+      bars = true;
+    }
+    if (bars && letterbox) {
+      rect.height = RescaleUnsigned(surface_width * 100, aspect_y, aspect_x * safe_area);
+      rect.y = (static_cast<i32>(surface_height) - static_cast<i32>(rect.height)) / 2;
+    } else {
+      rect.height = surface_height;
+    }
+    rect.x = (static_cast<i32>(surface_width) - static_cast<i32>(rect.width)) / 2;
+  }
+  return rect;
 }
 
 /**

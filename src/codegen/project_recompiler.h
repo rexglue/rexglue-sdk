@@ -10,6 +10,7 @@
 
 #pragma once
 
+#include <filesystem>
 #include <string>
 #include <vector>
 
@@ -29,6 +30,10 @@ struct ProjectRecompilerOptions {
   IProgressReporter* reporter = nullptr; /**< Receives progress events, null for none. */
   bool ignore_stamp = false; /**< Skips the stamp check and regenerates every targeted module. */
   Limits limits; /**< Analysis limits for every targeted module, folded into the fingerprint. */
+  u32 threads =
+      0; /**< Threads that generate the function bodies, 0 for the hardware thread count. */
+  std::filesystem::path
+      depfile; /**< Where to write the make style dependency file, empty for none. */
 
   /**
    * Folded into the input fingerprint. Keep it stable across commits, such as "0.10.0-dev", or

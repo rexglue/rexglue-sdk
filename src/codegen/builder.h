@@ -699,6 +699,8 @@ bool Build<PPC_INST_VMAXSW>(BuilderContext& ctx);
 template <>
 bool Build<PPC_INST_VMAXUH>(BuilderContext& ctx);
 template <>
+bool Build<PPC_INST_VMAXUW>(BuilderContext& ctx);
+template <>
 bool Build<PPC_INST_VMINSH>(BuilderContext& ctx);
 template <>
 bool Build<PPC_INST_VMINSB>(BuilderContext& ctx);

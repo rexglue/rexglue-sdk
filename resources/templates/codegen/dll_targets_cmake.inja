@@ -3,6 +3,11 @@
 
 {% for mod in dll_modules %}
 # DLL module: {{ mod.target_name }}
+set_property(
+  DIRECTORY
+  APPEND
+  PROPERTY CMAKE_CONFIGURE_DEPENDS "{{ cmake_var("CMAKE_CURRENT_SOURCE_DIR") }}/{{ mod.output_dir }}/sources.cmake"
+)
 if (EXISTS "{{ cmake_var("CMAKE_CURRENT_SOURCE_DIR") }}/{{ mod.output_dir }}/sources.cmake")
   set(_rexglue_restore_generated_sources FALSE)
   if (DEFINED GENERATED_SOURCES)

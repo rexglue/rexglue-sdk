@@ -8,6 +8,8 @@
 #include <rex/kernel/thread_state.h>
 #include <rex/kernel/title_runtime.h>
 #include <rex/kernel/heap.h>
+#include <rex/kernel/memory_view.h>
+#include <rex/kernel/title_debug_output.h>
 #include <rex/logging/log_category.h>
 #include <rex/ppc/context.h>
 #include <rex/ppc/hook.h>
@@ -75,6 +77,22 @@ void CheckKernelDetourArguments(const char* name, PPCFunc* host, u8 declared_gpr
   }
 }
 
+void WriteDebugText(u32 address, u32 length) {
+  const ThreadState* state = ThreadState::Get();
+  TitleRuntime* runtime = state != nullptr ? state->GetRuntime() : nullptr;
+  const GuestAddressSpace* memory = state != nullptr ? state->GetAddressSpace() : nullptr;
+  if (runtime == nullptr || memory == nullptr) {
+    return;
+  }
+  ITitleDebugOutput& output = runtime->GetDebugOutput();
+  if (!output.IsEnabled()) {
+    return;
+  }
+  if (const auto text = MemoryView(*memory).TryGetCString(address, length)) {
+    output.Write(*text, output.GetEncoding());
+  }
+}
+
 std::mutex g_hooks_mutex;
 u32 g_hooks_count = 0;
 
@@ -88,6 +106,7 @@ const ppc::KernelHooks kHooks = {
 #endif
     CheckKernelDetourLocalWrites,
     CheckKernelDetourArguments,
+    WriteDebugText,
 };
 
 }  // namespace

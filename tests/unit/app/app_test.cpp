@@ -121,7 +121,7 @@ class DepthOwner final : public rex::SettingOwner {
  public:
   DepthOwner() : SettingOwner("feedlayers") {}
   REX_SETTING(rex::i32, depth, 0, "Depth");
-  REX_SETTING(rex::i32, startup, 0, "Startup", rex::kStartupOnly);
+  REX_SETTING(rex::i32, startup, 0, "Startup", rex::kInitOnly);
 };
 
 class LayerApp : public TestApp {
@@ -151,6 +151,8 @@ class LayerApp : public TestApp {
 
 class OrderProvider final : public rex::IModule, public rex::IDriverModule {
  public:
+  REX_MODULE_SERVES(rex::IDriverModule)
+
   std::string_view GetName() const override { return "order"; }
   rex::Result<void> Connect(rex::IInterfaceFactory&) override {
     g_events.push_back("provider:connect");
@@ -855,6 +857,8 @@ std::unique_ptr<rex::IDriver> CreateUI() {
 
 class OrderProvider final : public rex::IModule, public rex::IDriverModule {
  public:
+  REX_MODULE_SERVES(rex::IDriverModule)
+
   std::string_view GetName() const override { return "order"; }
   rex::Result<void> Connect(rex::IInterfaceFactory&) override { return {}; }
   void Disconnect() override {}
@@ -879,6 +883,7 @@ class OrderApp final : public rex::test::ObjectApp<rex::app::App> {
   }
 
   bool needs_ui = false;
+  bool needs_audio = false;
   bool dirty = false;
 
   rex::Result<void> Start() {
@@ -897,6 +902,7 @@ class OrderApp final : public rex::test::ObjectApp<rex::app::App> {
   rex::AppSysRequirements GetRequirements() const override {
     rex::AppSysRequirements needs;
     needs.ui = needs_ui;
+    needs.audio = needs_audio;
     return needs;
   }
 
@@ -929,6 +935,8 @@ class OrderApp final : public rex::test::ObjectApp<rex::app::App> {
 REX_TEST_CASE("systems stop in reverse start order", "[app][app][modules]") {
   g_events.clear();
   OrderApp app;
+  app.needs_ui = true;
+  app.needs_audio = true;
   REQUIRE(app.Start());
   app.Finish();
   const std::vector<std::string> expected = {"init input",  "init audio",     "init ui",
@@ -936,11 +944,41 @@ REX_TEST_CASE("systems stop in reverse start order", "[app][app][modules]") {
   CHECK(g_events == expected);
 }
 
+REX_TEST_CASE("a UI or audio driver loads only for an app that requires it",
+              "[app][app][modules]") {
+  g_events.clear();
+  {
+    OrderApp app;
+    REQUIRE(app.Start());
+    app.Finish();
+    CHECK(g_events == std::vector<std::string>{"init input", "shutdown input"});
+  }
+  g_events.clear();
+  {
+    OrderApp app;
+    app.needs_ui = true;
+    REQUIRE(app.Start());
+    app.Finish();
+    CHECK(g_events ==
+          std::vector<std::string>{"init input", "init ui", "shutdown ui", "shutdown input"});
+  }
+  g_events.clear();
+  {
+    OrderApp app;
+    app.needs_audio = true;
+    REQUIRE(app.Start());
+    app.Finish();
+    CHECK(g_events ==
+          std::vector<std::string>{"init input", "init audio", "shutdown audio", "shutdown input"});
+  }
+}
+
 REX_TEST_CASE("a system that fails to init is stopped once and the earlier ones are stopped",
               "[app][app][modules]") {
   g_events.clear();
   OrderApp app;
   app.needs_ui = true;
+  app.needs_audio = true;
   rex::test_ui::g_ui.open_fails = true;
   CHECK_FALSE(app.Start());
   app.Finish();

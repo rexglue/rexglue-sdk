@@ -213,16 +213,11 @@ void XMAContext::SwapInputBuffer(XMA_CONTEXT_DATA* data) {
 }
 
 void XMAContext::UpdateLoopStatus(XMA_CONTEXT_DATA* data) {
-  if (data->loop_count == 0) {
+  if (!IsAtLoopEnd(*data)) {
     return;
   }
 
   const u32 loop_start = std::max(kBitsPerPacketHeader, data->loop_start);
-  const u32 loop_end = std::max(kBitsPerPacketHeader, data->loop_end);
-
-  if (data->input_buffer_read_offset != loop_end) {
-    return;
-  }
 
   data->input_buffer_read_offset = loop_start;
   loop_start_skip_pending_ = true;
@@ -520,11 +515,7 @@ void XMAContext::Decode(XMA_CONTEXT_DATA* data) {
 
   input_buffer_.fill(0);
 
-  bool is_loop_end_frame = false;
-  if (data->loop_count > 0) {
-    const u32 loop_end = std::max(kBitsPerPacketHeader, data->loop_end);
-    is_loop_end_frame = (data->input_buffer_read_offset == loop_end);
-  }
+  const bool is_loop_end_frame = IsAtLoopEnd(*data);
 
   if (!data->output_buffer_block_count) {
     REXAPU_ERROR("XMAContext {}: Received 0 for output_buffer_block_count!", GetID());

@@ -218,6 +218,21 @@ REX_TEST_CASE("the generated style call reaches the exporter function",
   });
 }
 
+REX_TEST_CASE("a module named by its game partition path runs its recompiled code",
+              "[kernel][module][import]") {
+  KernelFixture fixture(PopulateAll);
+  fixture.RunOnGuestThread([](Caller& c) {
+    auto& runtime = c.GetRuntime();
+    RegisterImages(runtime);
+    auto importer =
+        runtime.GetModuleRegistry().LoadUserModule("\\Device\\Harddisk0\\Partition1\\importer.xex");
+    REQUIRE(importer);
+    REQUIRE(rex::kernel::GetFunctionDispatcher(runtime).GetFunction(kDirectFunction));
+    CHECK(CallFunction(runtime, kDirectFunction) == kResult);
+    UnloadBoth(runtime, *importer);
+  });
+}
+
 REX_TEST_CASE("an indirect call through a function slot reaches the exporter function",
               "[kernel][module][import]") {
   KernelFixture fixture(PopulateAll);

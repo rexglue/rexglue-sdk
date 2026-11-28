@@ -28,6 +28,17 @@ namespace rex::codegen {
 
 class FunctionNode;
 
+/**
+ * Reports whether a function keeps its non volatile registers in locals: true with
+ * non_volatile_as_local, except in a save or restore helper, a function that shares registers and
+ * a function with SEH scopes when exception handlers are generated.
+ *
+ * @param fn The function to check
+ * @param config The recompiler configuration
+ * @return True when the function's non volatile registers are locals.
+ */
+bool LocalizesNonVolatiles(const FunctionNode& fn, const RecompilerConfig& config);
+
 struct RecompilerLocalVariables {
   bool ctr{};
   bool xer{};
@@ -193,6 +204,15 @@ struct BuilderContext {
    * @param site Address of the call or branch instruction
    */
   const CallTarget* FindCallTarget(u32 site) const;
+
+  /**
+   * Resolves a linker thunk to the setjmp or longjmp function it branches to. A thunk is a
+   * function whose only instruction is an unconditional branch without link.
+   *
+   * @param address The call or branch target.
+   * @return The setjmp or longjmp address when address is a thunk to one, address otherwise.
+   */
+  u32 ResolveJumpThunk(u32 address) const;
 
   /**
    * Logs an error and emits REXCPU_FATAL when the function node has no call target. Save and

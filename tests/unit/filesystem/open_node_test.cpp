@@ -111,3 +111,34 @@ REX_TEST_CASE_METHOD(OpenRoot, "An open file outlives the unmount of its mount",
   GetFileSystem().Clear();
   CHECK(reader.file->GetInfo().absolute_path == "\\OpenRoot\\held.dat");
 }
+
+REX_TEST_CASE_METHOD(OpenRoot, "A write keeps the node size current across reopens",
+                     "[filesystem][open_node]") {
+  constexpr std::string_view kGrowPath = "\\OpenRoot\\grow.dat";
+  const std::filesystem::path host_path = GetTemp() / "grow.dat";
+  const std::array<u8, 6> first{'a', 'a', 'a', 'a', 'a', 'a'};
+  const std::array<u8, 6> second{'b', 'b', 'b', 'b', 'b', 'b'};
+
+  {
+    auto created =
+        Open(kGrowPath, {.disposition = Disposition::kCreate, .access = Access::kWriteAccess});
+    REQUIRE(created.file->Write(first, 0));
+    CHECK(created.file->GetInfo().size == first.size());
+  }
+  {
+    auto appender =
+        Open(kGrowPath, {.disposition = Disposition::kOpenIf, .access = Access::kWriteAccess});
+    const rex::u64 end = appender.file->GetInfo().size;
+    CHECK(end == first.size());
+    REQUIRE(appender.file->Write(second, end));
+    CHECK(appender.file->GetInfo().size == first.size() + second.size());
+  }
+  CHECK(std::filesystem::file_size(host_path) == first.size() + second.size());
+  CHECK(ReadText(*Open(kGrowPath).file) == "aaaaaabbbbbb");
+
+  auto sized = Open(kGrowPath, {.disposition = Disposition::kOpen, .access = Access::kWriteAccess});
+  REQUIRE(sized.file->SetLength(4));
+  CHECK(sized.file->GetInfo().size == 4);
+  REQUIRE(sized.file->SetLength(20));
+  CHECK(sized.file->GetInfo().size == 20);
+}

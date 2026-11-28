@@ -11,7 +11,7 @@ This page lists every section and key. See [Codegen Pipeline](../codegen/codegen
 | `[project]` | Required. Holds the keys for the whole project. |
 | `[entrypoint]` | Required. Holds the keys of the entrypoint XEX. |
 | `[[modules]]` | Optional. Holds the keys of one DLL module per entry. |
-| Any other top level key or table | Forms the shared layer. Its keys are binary table keys that apply to every binary. See [Includes](#includes). |
+| Any other top level key or table | Applies to every binary. These top level keys are called the shared layer, and they take the same keys as `[entrypoint]` (see [Binary Tables](#binary-tables)). See also [Includes](#includes). |
 
 Relative paths in `file_path`, `out_directory_path`, `template_dir`, `game_root` and `hook_sources` resolve against the folder of the manifest.
 
@@ -19,9 +19,9 @@ Relative paths in `file_path`, `out_directory_path`, `template_dir`, `game_root`
 
 | Key | Type | Meaning |
 |---|---|---|
-| `name` | string | Required. Sets the prefix of every generated C++ file. It starts with a letter or `_` and contains only letters, digits and `_`. |
+| `name` | string | Required. Sets the prefix of every generated C++ file. It starts with a letter or `_` and contains only letters, digits and `_`. `rexglue init` accepts only a leading letter. |
 | `sdk_version` | string | The SDK version that last ran codegen on the project. Codegen writes it. See [SDK Version Stamp](#sdk-version-stamp). |
-| `game_root` | string | Sets the folder that holds the game files. The entrypoint and every targeted module must be inside it. The default is the folder of the entrypoint. |
+| `game_root` | string | Sets the folder that holds the game files. The entrypoint and every DLL module that codegen processes must be inside it. The default is the folder of the entrypoint. |
 | `hook_sources` | array of strings | Lists the folders that codegen scans for mid function hooks declared in C++. See [Hook Sources](../codegen/hooks.md#hook-sources). |
 
 ## Binary Tables
@@ -33,10 +33,10 @@ Relative paths in `file_path`, `out_directory_path`, `template_dir`, `game_root`
 | Key | Type | Meaning |
 |---|---|---|
 | `file_path` | string | Required. Points to the XEX file. |
-| `guest_path` | string | Required for modules. Sets the path that guest code loads the module by. It must be unique, ignoring the device, the slash direction, case, and a leading project name followed by `/assets/`. |
-| `out_directory_path` | string | Sets the output folder. Each targeted binary needs its own. |
+| `guest_path` | string | Required for modules. Sets the path that the game uses to load the module, such as `game:\plugins\foo.xex`. Two modules cannot have the same path. Paths are compared without the device prefix (`game:`) or the game partition it links to (`\Device\Harddisk0\Partition1`), without regard to case or slash direction, and with a leading `<project name>/assets/` removed. |
+| `out_directory_path` | string | Sets the output folder. Each binary that one codegen run processes (see [`--target`](cli.md#targets)) needs its own. |
 | `project_name` | string | Sets the file prefix for this binary. The default is `[project].name`. |
-| `template_dir` | string | Points to a folder of templates that replace the built in templates. |
+| `template_dir` | string | Points to a folder of `.inja` template files that replace the built in templates of the same path, for the files that codegen writes. |
 | `includes` | array of strings | Lists TOML files to merge into the table. See [Includes](#includes). |
 | `is_dll` | boolean | Marks the binary as a DLL. The default is `false` for the entrypoint and `true` for modules. |
 
@@ -44,22 +44,30 @@ Relative paths in `file_path`, `out_directory_path`, `template_dir`, `game_root`
 
 | Key | Type | Meaning |
 |---|---|---|
-| `longjmp_address` | integer | Gives the address of the guest `longjmp`. Codegen writes calls to it as `ppc_longjmp`. |
-| `setjmp_address` | integer | Gives the address of the guest `setjmp`. Codegen writes calls to it as `ppc_setjmp`. |
+| `longjmp_address` | integer | Gives the address of the guest `longjmp`. Codegen writes calls to it as `ppc_longjmp`, and calls to a function that only branches to it. |
+| `setjmp_address` | integer | Gives the address of the guest `setjmp`. Codegen writes calls to it as `ppc_setjmp`, and calls to a function that only branches to it. |
+
+### Function Table
+
+| Key | Type | Meaning |
+|---|---|---|
+| `function_table_base` | integer | Places the [function table](../codegen/generated-code.md#function-table) of the binary at this guest address, 64 KB aligned, in `0x80000000` to `0x8FFFFFFF`. The default, `0`, places it right after the image, at `image_base + image_size`. Set it when another module's image starts before the end of the table there. |
 
 ### Addresses
 
 - Addresses in `longjmp_address`, `setjmp_address`, `[mmio]`, `[shim]` and `[functions]` must be 4 byte aligned.
-- An address entry in the shared layer goes to the binary whose image contains the address. An entry in no image fails with `Manifest entries are in no binary image`.
+- An address entry in the shared layer goes to the binary whose image contains the address. The image of a binary is its loaded address range. An entry in no image fails with `Manifest entries are in no binary image`.
 
 ### Register and Codegen Flags
 
 Each flag is a boolean and defaults to `false`. See [Optimizations](../codegen/codegen-pipeline.md#optimizations) for what each one changes in the generated code.
 
+`ctx` is the `PPCContext`, the guest register state that every recompiled function receives. A flag that keeps a register in a local uses a C++ local variable instead of the field of `ctx`.
+
 | Key | Meaning |
 |---|---|
 | `skip_lr` | Removes every `ctx.lr` write and the `mflr` read. The writes are the `bl` to a guest function, `blrl`, `bctrl` and `mtlr`. A `bl` to an import always writes `ctx.lr`. |
-| `skip_msr` | Removes the global lock read at `mfmsr`, and the MSR update and the global lock enter and leave at `mtmsrd`. |
+| `skip_msr` | Removes the MSR read at `mfmsr`, and the MSR update and the interrupt enable bit change at `mtmsrd`. The interrupt enable bit is bit `0x8000` of the MSR, which a `mtmsrd` from `r13` clears. See [Link and Machine State Registers](../codegen/codegen-pipeline.md#link-and-machine-state-registers). |
 | `ctr_as_local` | Keeps CTR in a local instead of `ctx.ctr`. |
 | `xer_as_local` | Keeps XER in a local instead of `ctx.xer`. |
 | `reserved_as_local` | Keeps the reservation register in a local instead of `ctx.reserved`. |
@@ -73,7 +81,7 @@ Each flag is a boolean and defaults to `false`. See [Optimizations](../codegen/c
 
 | Key | Type | Default | Meaning |
 |---|---|---|---|
-| `exception_handler_funcs` | array of integers | empty | Lists the addresses of exception handler functions. |
+| `exception_handler_funcs` | array of integers | empty | Lists the addresses of exception handler functions. When the scan for code regions meets a zero word that is followed by one of these addresses, it skips that word and the two after it as data. |
 
 ### `[functions]`
 
@@ -89,11 +97,11 @@ Declares functions that analysis does not find by itself, or gives their size or
 | `name` | string | Sets the function name. The default is `sub_` and the address. |
 | `size` | integer | Sets the size in bytes. Cannot be combined with `end`. |
 | `end` | integer | Sets the end address, one past the last byte. Cannot be combined with `size`. |
-| `parent` | integer | When not zero, makes the entry a chunk of the function at this address. |
+| `parent` | integer | When not zero, marks the entry as a separate piece of code that belongs to the function at this address, such as a block that the compiler placed away from the function body. This piece is a chunk. |
 | `share_registers` | boolean | Makes the function use the registers of its caller, for an SEH funclet. |
 
-- A bad entry is logged and skipped.
-- Overlapping entries that are not chunks fail validation.
+- An entry is logged and skipped when its key is not a hex address, its value is not a table, it has both `size` and `end`, or its `end` is not above the address.
+- An address that is not 4 byte aligned and overlapping entries that are not chunks fail validation.
 
 ### `[[invalid_instructions]]`
 
@@ -123,9 +131,9 @@ Inserts a call to a host function at an instruction address. See [Manifest Hooks
 | `address` | integer | Required. Gives the instruction address. |
 | `name` | string | Required. The function to call. |
 | `registers` | array of strings | Lists the registers to pass, in order. See the list below. |
-| `return` | boolean | Returns after the call. |
-| `return_on_true` | boolean | Returns when the hook returns true. |
-| `return_on_false` | boolean | Returns when the hook returns false. |
+| `return` | boolean | Returns from the recompiled function right after the call. |
+| `return_on_true` | boolean | Returns from the recompiled function when the hook returns true. |
+| `return_on_false` | boolean | Returns from the recompiled function when the hook returns false. |
 | `jump_address` | integer | Jumps to this address after the call. |
 | `jump_address_on_true` | integer | Jumps to this address when the hook returns true. |
 | `jump_address_on_false` | integer | Jumps to this address when the hook returns false. |
@@ -172,7 +180,7 @@ fres = "fast"
 
 ### `[shim]`
 
-A shim is an SDK host function that replaces the copy of a library routine that is compiled into the XEX. Each key is a routine name and each value is the address of that copy, which codegen replaces with `rexshim_` and the name. [`rexglue list shim`](cli.md#list-shim) prints the names, and [Shims](../runtime/shims.md) lists them by group.
+A shim is an SDK host function that replaces the copy of a library routine that is compiled into the XEX. Each key is a routine name and each value is the address of that copy. Codegen makes calls to it call the host function `rexshim_<name>` instead. [`rexglue list shim`](cli.md#list-shim) prints the names, and [Shims](../runtime/shims.md) lists them by group.
 
 ```toml
 [shim]
@@ -198,12 +206,12 @@ Declares memory accesses to the GPU and APU registers that codegen cannot find b
 
 ### Merge Order
 
-Each binary table is built in four steps, and a later step wins:
+Each binary table is built in four steps. A later step overrides an earlier one, except that step 4 never overrides an entry that the binary table already has for the same address:
 
 1. The scalar keys and flags of the shared layer, without its address entries.
 2. The included files, in array order.
 3. The keys of the table itself.
-4. The address entries of the shared layer that are in the image of the binary. An entry that the binary has for the same address wins.
+4. The address entries of the shared layer that are in the image of the binary.
 
 ### Merge Rules
 

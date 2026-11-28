@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <format>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -403,7 +404,6 @@ constexpr u32 kFPRSlotBase = 32;
 constexpr u32 kVMXSlotBase = 32;
 constexpr u32 kVMXExtendedSlotBase = 128;
 constexpr u32 kWordBytes = 4;
-constexpr size_t kRunClassCount = 8;
 
 bool IsSaveType(MillicodeType type) {
   return type == MillicodeType::kGPRSave || type == MillicodeType::kFPRSave ||
@@ -556,17 +556,17 @@ void DetectMillicodeRuns(const BinaryView& binary, AnalysisState& state) {
         if (!run)
           continue;
         const bool known = std::any_of(runs.begin(), runs.end(), [&](const MillicodeRun& other) {
-          return IsSameRunClass(other, type, run->first);
+          return other.type == run->type && other.head == run->head;
         });
         if (known)
           continue;
         REXCG_DEBUG("Found {}{} at 0x{:08X}", GetMillicodePrefix(type), run->first, run->head);
         runs.push_back(*run);
       }
-      if (runs.size() == kRunClassCount)
-        return;
     }
   }
+  std::sort(runs.begin(), runs.end(),
+            [](const MillicodeRun& a, const MillicodeRun& b) { return a.head < b.head; });
 }
 
 /**
@@ -679,14 +679,20 @@ u32 FindRestoreHelper(const AnalysisState& state, const MillicodeEntry& entry) {
         import_count, resolved_count, module_import_count, unresolved_count, variable_count);
   }
 
-  for (const auto& run : state.millicode_runs) {
+  for (size_t run_index = 0; run_index < state.millicode_runs.size(); ++run_index) {
+    const auto& run = state.millicode_runs[run_index];
     const u32 tail_bytes = static_cast<u32>(GetTailWords(run.type).size()) * kWordBytes;
+    const bool copy = std::ranges::any_of(
+        std::span(state.millicode_runs).first(run_index),
+        [&](const MillicodeRun& other) { return IsSameRunClass(other, run.type, run.first); });
     for (u32 i = 0; i < run.count; ++i) {
       const u32 addr = run.head + i * run.stride;
       const u32 reg = run.first + i;
       graph.AddFunction(addr, (run.count - i) * run.stride + tail_bytes, FunctionAuthority::kHelper,
                         true);
-      graph.SetFunctionName(addr, std::format("{}{}", GetMillicodePrefix(run.type), reg));
+      graph.SetFunctionName(
+          addr, copy ? std::format("{}{}_{:08X}", GetMillicodePrefix(run.type), reg, addr)
+                     : std::format("{}{}", GetMillicodePrefix(run.type), reg));
       graph.SetFunctionMillicode(addr, MillicodeEntry{run.type, reg});
     }
   }

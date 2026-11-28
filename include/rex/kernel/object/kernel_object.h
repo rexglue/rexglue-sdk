@@ -63,8 +63,10 @@ struct KernelObject {
   u32 pointer_refs = 0;          /**< Pointer references, which keep the object without a handle. */
   u32 guest_ptr = 0;             /**< Address of the object body, 0 without a guest block. */
   bool owns_guest_block = false; /**< True when the destructor frees the block at guest_ptr. */
-  /** Set when a Ke initializer rewrote the header of an object that owns its block. */
-  std::atomic<bool> reinit_pending{false};
+  /** Counts the Ke initializers that rewrote the header of an object that owns its block. */
+  std::atomic<u32> reinit_requests{0};
+  /** The value of reinit_requests the host state was last rebuilt for. */
+  std::atomic<u32> reinit_done{0};
   kernel::GuestAddressSpace* memory = nullptr;
   WorkspaceHeap* workspace = nullptr; /**< Null for the system heap. */
   PinCount pins;                      /**< Keeps the object alive while a caller uses it. */

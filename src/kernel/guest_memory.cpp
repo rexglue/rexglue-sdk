@@ -136,7 +136,7 @@ Result<u32> GuestMemory::Allocate(u32 size, u32 alignment, GuestProtect protect,
   const bool physical = where == GuestHeap::kPhysical;
   kernel::BaseHeap* heap = state_->memory->LookupHeapByType(physical, 0x10000);
   const u32 type = kernel::kMemoryAllocationReserve | kernel::kMemoryAllocationCommit |
-                   (physical ? kernel::kMemoryAllocationTitle : 0);
+                   kernel::kMemoryAllocationTitle;
   u32 address = 0;
   if (heap == nullptr || !heap->Alloc(size, alignment, type, flags, false, &address)) {
     return Err<u32>(ErrorCategory::kMemory, std::format("cannot allocate {} bytes", size));

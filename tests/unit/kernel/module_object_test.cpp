@@ -438,3 +438,21 @@ REX_TEST_CASE("A title workspace size header gives the title workspace that size
   CHECK(expected != rex::kernel::WorkspaceHeap::ResolveSize(0));
   CHECK(StateOf(fixture.GetRuntime()).GetWorkspace().GetSize() == expected);
 }
+
+REX_TEST_CASE("XamAlloc allocates from the workspace a title workspace size header replaced",
+              "[kernel][xex][workspace]") {
+  auto spec = ExecutableSpec();
+  spec.workspace_size = 0x100000;
+  rex::test::KernelFixture fixture(
+      [&](const std::filesystem::path& root) { WriteExecutable(root, spec); });
+  LoadExecutable(fixture);
+  fixture.RunOnGuestThread([](rex::test::Caller& c) {
+    auto& workspace = StateOf(c.GetRuntime()).GetWorkspace();
+    const u32 before = workspace.GetAllocated();
+    const u32 out = c.Alloc(4);
+    CHECK(c.XAM("XamAlloc", {0x10000000, 0x1000, out}) == 0);
+    CHECK(workspace.GetAllocated() == before + 0x1000);
+    c.XAM("XamFree", {c.Load32(out)});
+    CHECK(workspace.GetAllocated() == before);
+  });
+}

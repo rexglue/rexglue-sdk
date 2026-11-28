@@ -144,3 +144,16 @@ REX_TEST_CASE("A scaled timeval keeps the fraction of its seconds", "[base][chro
   CHECK(usec == 0);
   rex::Clock::SetGuestTimeScalar(scalar);
 }
+
+REX_TEST_CASE("Converting NT times to steady clock keeps early and far future times ordered",
+              "[base][chrono]") {
+  const auto before = std::chrono::steady_clock::now();
+  const auto epoch =
+      std::chrono::clock_cast<std::chrono::steady_clock>(WinSystemClock::FromFileTime(kFtNtEpoch));
+  const auto far_future = std::chrono::clock_cast<std::chrono::steady_clock>(
+      WinSystemClock::FromFileTime(0x7FFFFFFFFFFFFFFFull));
+  const auto after = std::chrono::steady_clock::now();
+
+  REQUIRE(epoch < before);
+  REQUIRE(far_future > after);
+}

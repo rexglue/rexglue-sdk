@@ -154,6 +154,24 @@ u8 VirtualKeyToHIDUsage(VirtualKey vk_enum) {
   }
 }
 
+constexpr std::array<std::pair<size_t, u16>, 15> kButtonBinds = {{
+    {kBindA, rex::hid::kPadA},
+    {kBindB, rex::hid::kPadB},
+    {kBindX, rex::hid::kPadX},
+    {kBindY, rex::hid::kPadY},
+    {kBindLeftShoulder, rex::hid::kPadLeftShoulder},
+    {kBindRightShoulder, rex::hid::kPadRightShoulder},
+    {kBindLStickPress, rex::hid::kPadLeftThumb},
+    {kBindRStickPress, rex::hid::kPadRightThumb},
+    {kBindBack, rex::hid::kPadBack},
+    {kBindStart, rex::hid::kPadStart},
+    {kBindGuide, rex::hid::kPadGuide},
+    {kBindDPadUp, rex::hid::kPadDPadUp},
+    {kBindDPadDown, rex::hid::kPadDPadDown},
+    {kBindDPadLeft, rex::hid::kPadDPadLeft},
+    {kBindDPadRight, rex::hid::kPadDPadRight},
+}};
+
 Error NotConnected() {
   return Error(ErrorCategory::kNotFound, "keyboard and mouse emulation is off");
 }
@@ -251,24 +269,7 @@ Result<rex::hid::PadState> KeyboardMousePad::GetDeviceState(rex::hid::PadDeviceI
 
   rex::hid::PadState state;
   u16 buttons = 0;
-  const std::array<std::pair<size_t, u16>, 15> button_binds = {{
-      {kBindA, rex::hid::kPadA},
-      {kBindB, rex::hid::kPadB},
-      {kBindX, rex::hid::kPadX},
-      {kBindY, rex::hid::kPadY},
-      {kBindLeftShoulder, rex::hid::kPadLeftShoulder},
-      {kBindRightShoulder, rex::hid::kPadRightShoulder},
-      {kBindLStickPress, rex::hid::kPadLeftThumb},
-      {kBindRStickPress, rex::hid::kPadRightThumb},
-      {kBindBack, rex::hid::kPadBack},
-      {kBindStart, rex::hid::kPadStart},
-      {kBindGuide, rex::hid::kPadGuide},
-      {kBindDPadUp, rex::hid::kPadDPadUp},
-      {kBindDPadDown, rex::hid::kPadDPadDown},
-      {kBindDPadLeft, rex::hid::kPadDPadLeft},
-      {kBindDPadRight, rex::hid::kPadDPadRight},
-  }};
-  for (const auto& [index, bit] : button_binds) {
+  for (const auto& [index, bit] : kButtonBinds) {
     if (IsPressed(index)) {
       buttons |= bit;
     }
@@ -323,6 +324,14 @@ Result<rex::hid::PadState> KeyboardMousePad::GetDeviceState(rex::hid::PadDeviceI
   state.thumb_rx = clamp16(rx);
   state.thumb_ry = clamp16(ry);
   return state;
+}
+
+u16 KeyboardMousePad::TakeDevicePresses(rex::hid::PadDeviceID id) {
+  if (!IsEnabled() || IsPassthrough() || id != kKeyboardMouseDevice) {
+    return 0;
+  }
+  std::lock_guard lock(mutex_);
+  return std::exchange(pressed_, u16{0});
 }
 
 Result<void> KeyboardMousePad::SetDeviceVibration(rex::hid::PadDeviceID id,
@@ -388,6 +397,17 @@ void KeyboardMousePad::SetKeyState(u16 key, bool down) {
   }
 }
 
+void KeyboardMousePad::LatchPresses(u16 key) {
+  const KeyModifiers live = HeldModifiers(key_down_);
+  for (const auto& [index, bit] : kButtonBinds) {
+    if (std::ranges::any_of(binds_[index], [&](const KeyChord& chord) {
+          return static_cast<u16>(chord.key) == key && chord.modifiers == live;
+        })) {
+      pressed_ = static_cast<u16>(pressed_ | bit);
+    }
+  }
+}
+
 void KeyboardMousePad::OnKey(const InputEvent& event, bool down) {
   if (!IsEnabled() || (down && !focused_.load(std::memory_order_relaxed))) {
     return;
@@ -415,6 +435,9 @@ void KeyboardMousePad::OnKey(const InputEvent& event, bool down) {
     return;
   }
   SetKeyState(static_cast<u16>(event.key), down);
+  if (down && !event.repeat) {
+    LatchPresses(static_cast<u16>(event.key));
+  }
 }
 
 void KeyboardMousePad::OnChar(const InputEvent& event) {
@@ -438,24 +461,29 @@ void KeyboardMousePad::OnButton(const InputEvent& event, bool down) {
     return;
   }
   std::lock_guard lock(mutex_);
+  VirtualKey key = VirtualKey::kNone;
   switch (event.button) {
     case MouseButton::kLeft:
-      SetKeyState(std::to_underlying(VirtualKey::kLButton), down);
+      key = VirtualKey::kLButton;
       break;
     case MouseButton::kRight:
-      SetKeyState(std::to_underlying(VirtualKey::kRButton), down);
+      key = VirtualKey::kRButton;
       break;
     case MouseButton::kMiddle:
-      SetKeyState(std::to_underlying(VirtualKey::kMButton), down);
+      key = VirtualKey::kMButton;
       break;
     case MouseButton::kX1:
-      SetKeyState(std::to_underlying(VirtualKey::kXButton1), down);
+      key = VirtualKey::kXButton1;
       break;
     case MouseButton::kX2:
-      SetKeyState(std::to_underlying(VirtualKey::kXButton2), down);
+      key = VirtualKey::kXButton2;
       break;
     case MouseButton::kNone:
-      break;
+      return;
+  }
+  SetKeyState(std::to_underlying(key), down);
+  if (down && !IsPassthrough()) {
+    LatchPresses(std::to_underlying(key));
   }
 }
 
@@ -472,6 +500,7 @@ void KeyboardMousePad::OnFocusLost() {
   pointer_lock_.store(false, std::memory_order_relaxed);
   std::lock_guard lock(mutex_);
   std::memset(key_down_, 0, sizeof(key_down_));
+  pressed_ = 0;
   mouse_dx_ = 0.0f;
   mouse_dy_ = 0.0f;
 }

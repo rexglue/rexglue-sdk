@@ -105,6 +105,17 @@ class REX_GPU_XENOS_API SharedMemory : public rex::NonCopyable, public IPhysical
    */
   void RangeWrittenByGPU(u32 start, u32 length);
 
+  /**
+   * Returns true when every page of the range holds the current guest data, uploaded or written by
+   * the GPU and not invalidated by the CPU since.
+   *
+   * @param lock The lock from AcquireLock, held by the caller.
+   * @param start The first byte of the range.
+   * @param length The range length in bytes.
+   * @return True when no page of the range is invalid.
+   */
+  bool IsRangeValid(const ScopeGuard& lock, u32 start, u32 length) const;
+
  protected:
   SharedMemory(IPhysicalMemory& memory, IPhysicalWriteWatch& watch);
   /** Implementations call it from their initialization. */
@@ -158,6 +169,17 @@ class REX_GPU_XENOS_API SharedMemory : public rex::NonCopyable, public IPhysical
   u32 page_size_log2_;
 
   bool AllocateHostGPUMemory(u32 start, u32 length);
+
+  /**
+   * Finds the pages of sorted, merged ranges that are not valid, and uploads them.
+   *
+   * @param merged The ranges as start and length pairs, in bounds, sorted and not overlapping.
+   * @param merged_count The number of ranges.
+   * @param request_count The number of ranges that were requested, for the profile plot.
+   * @return Whether the upload succeeded.
+   */
+  bool UploadMergedRanges(const std::pair<u32, u32>* merged, size_t merged_count,
+                          size_t request_count);
   u32 host_gpu_memory_sparse_granularity_log2_ = UINT32_MAX;
   std::vector<u64> host_gpu_memory_sparse_allocated_;
   u32 host_gpu_memory_sparse_allocations_ = 0;

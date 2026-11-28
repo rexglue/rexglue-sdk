@@ -16,9 +16,11 @@
 static_assert(REX_PLATFORM_WIN32, "This file is Windows-only");
 
 #include "platform_win.h"
+#include "base/sleep_state.h"
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <chrono>
 #include <cstring>
 #include <mutex>
@@ -110,26 +112,40 @@ namespace {
 struct SleepTimer {
   SleepTimer()
       : handle(CreateWaitableTimerExW(nullptr, nullptr, CREATE_WAITABLE_TIMER_HIGH_RESOLUTION,
-                                      TIMER_ALL_ACCESS)) {}
+                                      TIMER_ALL_ACCESS)),
+        create_error(handle ? ERROR_SUCCESS : GetLastError()) {}
   ~SleepTimer() {
     if (handle) {
       CloseHandle(handle);
     }
   }
   HANDLE handle;
+  DWORD create_error;
 };
 
 enum class TimerWait : u8 { kFailed, kElapsed, kAlerted };
 
+std::atomic<u64> g_sleep_timer_fallbacks{0};
+
+TimerWait FailSleepTimer(const char* step, DWORD error) {
+  g_sleep_timer_fallbacks.fetch_add(1, std::memory_order_relaxed);
+  static rex::log::OncePerKey<1> seen;
+  REXLOG_WARN_ONCE(seen, 0,
+                   "High resolution sleep timer failed at {} with Win32 error 0x{:08X}, sleeping "
+                   "with the system timer period instead",
+                   step, error);
+  return TimerWait::kFailed;
+}
+
 TimerWait WaitOnSleepTimer(std::chrono::microseconds duration, bool alertable) {
   thread_local SleepTimer timer;
   if (!timer.handle) {
-    return TimerWait::kFailed;
+    return FailSleepTimer("create", timer.create_error);
   }
   LARGE_INTEGER due;
   due.QuadPart = -duration.count() * 10;
   if (!SetWaitableTimer(timer.handle, &due, 0, nullptr, nullptr, FALSE)) {
-    return TimerWait::kFailed;
+    return FailSleepTimer("set", GetLastError());
   }
   switch (WaitForSingleObjectEx(timer.handle, INFINITE, alertable ? TRUE : FALSE)) {
     case WAIT_OBJECT_0:
@@ -137,11 +153,15 @@ TimerWait WaitOnSleepTimer(std::chrono::microseconds duration, bool alertable) {
     case WAIT_IO_COMPLETION:
       return TimerWait::kAlerted;
     default:
-      return TimerWait::kFailed;
+      return FailSleepTimer("wait", GetLastError());
   }
 }
 
 }  // namespace
+
+u64 detail::SleepTimerFallbackCount() {
+  return g_sleep_timer_fallbacks.load(std::memory_order_relaxed);
+}
 
 void SleepFor(std::chrono::microseconds duration) {
   if (duration <= std::chrono::microseconds::zero()) {

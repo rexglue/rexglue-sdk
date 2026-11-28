@@ -10,6 +10,8 @@
 
 #include "rex_test.h"
 
+#include <limits>
+
 #include "gpu/xenos/vblank_pacing.h"
 
 using namespace rex::gpu;
@@ -77,4 +79,35 @@ REX_TEST_CASE("A pass stops as soon as the worker is told to stop", "[gpu][vblan
       },
       [&] { return running; });
   CHECK(marks == 2);
+}
+
+REX_TEST_CASE("The vblank interval follows the configured rate or the refresh rate",
+              "[gpu][vblank]") {
+  constexpr rex::u64 kFrequency = 50'000'000;
+  CHECK(GetVblankIntervalTicks(0.0, 60.0, kFrequency) == kFrequency / 60);
+  CHECK(GetVblankIntervalTicks(30.0, 60.0, kFrequency) == kFrequency / 30);
+  CHECK(GetVblankIntervalTicks(-5.0, 60.0, kFrequency) == kFrequency / 60);
+  CHECK(GetVblankIntervalTicks(std::numeric_limits<rex::f64>::quiet_NaN(), 60.0, kFrequency) ==
+        kFrequency / 60);
+  CHECK(GetVblankIntervalTicks(0.25, 60.0, kFrequency) == kFrequency);
+  CHECK(GetVblankIntervalTicks(5000.0, 60.0, kFrequency) == kFrequency / 1000);
+  CHECK(GetVblankIntervalTicks(0.0, 0.0, kFrequency) == kFrequency);
+}
+
+REX_TEST_CASE("A changed vblank interval restarts the schedule without a burst", "[gpu][vblank]") {
+  rex::u64 last = 0;
+  rex::u64 scheduled = 0;
+  ApplyVblankInterval(1'000, last, scheduled, kInterval);
+  CHECK(scheduled == kInterval);
+  CHECK(last == 0);
+
+  ApplyVblankInterval(1'050, last, scheduled, kInterval);
+  CHECK(last == 0);
+
+  ApplyVblankInterval(1'050, last, scheduled, 10);
+  CHECK(scheduled == 10);
+  CHECK(last == 1'040);
+  rex::u32 marks = 0;
+  DeliverVblanks(1'050, last, 10, kMaxVblankCatchUp, [&] { ++marks; }, [] { return true; });
+  CHECK(marks == 1);
 }

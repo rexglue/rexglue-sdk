@@ -17,6 +17,7 @@
 #include <condition_variable>
 #include <format>
 #include <functional>
+#include <future>
 #include <memory>
 #include <mutex>
 #include <thread>
@@ -33,6 +34,7 @@
 
 #include "kernel_fixture.h"
 #include "elapsed.h"
+#include "kernel/thread_registry.h"
 #include "kernel/title_state.h"
 
 #if REX_PLATFORM_WIN32
@@ -42,6 +44,7 @@
 extern "C" void rexshim_ConvertThreadToFiber(PPCContext& ctx, rex::u8* base);
 extern "C" void rexshim_CreateFiber(PPCContext& ctx, rex::u8* base);
 extern "C" void rexshim_SwitchToFiber(PPCContext& ctx, rex::u8* base);
+extern "C" void rexshim_DeleteFiber(PPCContext& ctx, rex::u8* base);
 
 using rex::i64;
 using rex::u32;
@@ -134,6 +137,17 @@ void WaitUntil(const std::atomic<bool>& flag) {
   }
 }
 
+void WaitUntilTrue(const std::function<bool()>& condition) {
+  const auto until = std::chrono::steady_clock::now() + 2s;
+  while (!condition() && std::chrono::steady_clock::now() < until) {
+    std::this_thread::sleep_for(1ms);
+  }
+  CHECKED_ELSE(condition()) {
+    FAIL_CHECK("the check above failed");
+    return;
+  }
+}
+
 struct SetOnDestroy {
   std::shared_ptr<std::atomic<bool>> flag;
   ~SetOnDestroy() { flag->store(true); }
@@ -218,6 +232,38 @@ bool ExitedWithin(rex::kernel::TitleRuntime& runtime, u32 thread,
     std::this_thread::sleep_for(1ms);
   }
   return false;
+}
+
+std::atomic<u32> g_self_delete_fiber{0};
+
+void DeleteOwnFiber(PPCContext& ctx, u8* base) {
+  ctx.r3.u64 = g_self_delete_fiber.load();
+  rexshim_DeleteFiber(ctx, base);
+}
+
+u32 SpawnSelfDeletingFiber(Caller& c, bool from_created_fiber) {
+  return c.Spawn([from_created_fiber](Caller& t) {
+    PPCContext& ctx = t.GetContext();
+    u8* base = StateOf(t.GetRuntime()).GetAddressSpace()->GetVirtualMembase();
+    ctx.r3.u64 = 0;
+    rexshim_ConvertThreadToFiber(ctx, base);
+    const u32 main_fiber = ctx.r3.u32;
+    if (!from_created_fiber) {
+      ctx.r3.u64 = main_fiber;
+      rexshim_DeleteFiber(ctx, base);
+      return;
+    }
+    const u32 fiber_entry =
+        StateOf(t.GetRuntime()).GetFunctionDispatcher()->AllocateThunk(&DeleteOwnFiber, 0);
+    ctx.r3.u64 = 0x10000;
+    ctx.r4.u64 = fiber_entry;
+    ctx.r5.u64 = 0;
+    rexshim_CreateFiber(ctx, base);
+    const u32 fiber = ctx.r3.u32;
+    g_self_delete_fiber.store(fiber);
+    ctx.r3.u64 = fiber;
+    rexshim_SwitchToFiber(ctx, base);
+  });
 }
 
 std::atomic<u32> g_notify_event{0};
@@ -350,6 +396,52 @@ REX_TEST_CASE("A guest thread that ends as a fiber frees its fibers once",
   });
 }
 
+REX_TEST_CASE("A fiber that deletes itself ends its thread with the exit code",
+              "[kernel][shutdown][fiber]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 thread = SpawnSelfDeletingFiber(c, true);
+    CHECKED_ELSE(thread != 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
+    CHECKED_ELSE(Joined(c, thread, 5s)) {
+      FAIL_CHECK("the thread did not end");
+      return;
+    }
+    auto pin = c.GetRuntime().GetThreadRegistry().FindByHandle(thread);
+    CHECKED_ELSE(pin) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
+    CHECK(static_cast<u32>(pin->GetGuestObject<rex::kernel::X_KTHREAD>()->exit_status) == 1);
+    c.Kernel("NtClose", {thread});
+  });
+}
+
+REX_TEST_CASE("The main fiber that deletes itself ends its thread with the exit code",
+              "[kernel][shutdown][fiber]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 thread = SpawnSelfDeletingFiber(c, false);
+    CHECKED_ELSE(thread != 0) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
+    CHECKED_ELSE(Joined(c, thread, 5s)) {
+      FAIL_CHECK("the thread did not end");
+      return;
+    }
+    auto pin = c.GetRuntime().GetThreadRegistry().FindByHandle(thread);
+    CHECKED_ELSE(pin) {
+      FAIL_CHECK("the check above failed");
+      return;
+    }
+    CHECK(static_cast<u32>(pin->GetGuestObject<rex::kernel::X_KTHREAD>()->exit_status) == 1);
+    c.Kernel("NtClose", {thread});
+  });
+}
+
 REX_TEST_CASE("A stop wakes a nonalertable wait on an event nobody sets", "[kernel][shutdown]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
@@ -473,8 +565,9 @@ REX_TEST_CASE("TerminateTitle ends guest threads in every wait type with no kill
     threads.push_back(c.Spawn([handles](Caller& t) {
       t.Kernel("NtWaitForMultipleObjectsEx", {2, handles, 0, 1, 0, 0});
     }));
-    threads.push_back(c.Spawn([event](Caller& t) {
-      t.Kernel("NtSignalAndWaitForSingleObjectEx", {CreateGuestEvent(t), event, 0, 0, 0});
+    const u32 signaled = CreateGuestEvent(c);
+    threads.push_back(c.Spawn([event, signaled](Caller& t) {
+      t.Kernel("NtSignalAndWaitForSingleObjectEx", {signaled, event, 0, 0, 0});
     }));
     threads.push_back(c.Spawn([](Caller& t) {
       t.Kernel("KeDelayExecutionThread", {1, 0, t.AllocQuad(-36000000000LL)});
@@ -512,7 +605,10 @@ REX_TEST_CASE("TerminateTitle stops every thread launched while it runs", "[kern
         }
       }
     }));
-    std::this_thread::sleep_for(20ms);
+    WaitUntilTrue([launched] {
+      std::lock_guard lock(launched->mutex);
+      return !launched->handles.empty();
+    });
   });
   const auto start = std::chrono::steady_clock::now();
   StateOf(fixture.GetRuntime()).TerminateTitle();
@@ -821,6 +917,39 @@ REX_TEST_CASE("Teardown stops a thread whose exit notification waits forever",
   fixture.reset();
   g_exit_wait_armed.store(false);
   CHECK(MillisSince(start) < 5000);
+}
+
+REX_TEST_CASE(
+    "The host fence counts a KernelThread from its creation to the end of its host thread",
+    "[kernel][shutdown]") {
+  KernelFixture fixture;
+  auto& registry =
+      static_cast<rex::kernel::ThreadRegistry&>(StateOf(fixture.GetRuntime()).GetThreadRegistry());
+  const auto fence = registry.GetHostFence();
+  const u32 before = fence->GetCount();
+  std::promise<void> release;
+  auto released = release.get_future().share();
+  auto started = std::make_shared<std::atomic<bool>>(false);
+  auto launched = registry.Launch(std::make_unique<rex::kernel::KernelThread>(
+      fixture.GetRuntime(), 128 * 1024, 0, [released, started] {
+        started->store(true);
+        released.wait();
+        return 0;
+      }));
+  REQUIRE(launched);
+  WaitUntil(*started);
+  CHECK(fence->GetCount() == before + 1);
+  std::atomic<bool> waited{false};
+  std::thread waiter([&fence, &waited, before] {
+    fence->WaitIdle(before, 1s, [](u32) {});
+    waited.store(true);
+  });
+  std::this_thread::sleep_for(100ms);
+  CHECK_FALSE(waited.load());
+  release.set_value();
+  waiter.join();
+  CHECK(waited.load());
+  CHECK(fence->GetCount() == before);
 }
 
 u32 SocketAddress(Caller& c, u32 address, u32 port) {

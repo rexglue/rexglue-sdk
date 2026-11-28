@@ -26,6 +26,7 @@ set(CODEGEN_CORE_SOURCES
     phase_merge.cpp
     phase_validate.cpp
     call_usage.cpp
+    phase_live_ins.cpp
     template_registry.cpp
     hook_scan.cpp
     manifest.cpp

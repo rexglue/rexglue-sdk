@@ -31,8 +31,6 @@
 
 namespace rex::log {
 
-inline constexpr size_t kMaxCategories = 256;
-
 /** Lines kept for sinks that join later. */
 inline constexpr size_t kReplayLines = 4096;
 
@@ -58,7 +56,9 @@ struct Logger::State {
 
   u16 Resolve(const log::LogCategory& category);
 
-  log::Level GetSlotLevel(u16 slot) const { return levels[slot].load(std::memory_order_relaxed); }
+  log::Level GetSlotLevel(u16 slot) const {
+    return log::detail::g_slot_levels[slot].level.load(std::memory_order_relaxed);
+  }
 
   void Write(const log::Message& message) const;
 
@@ -106,6 +106,17 @@ struct Logger::State {
     std::shared_ptr<spdlog::sinks::sink> adapter;
   };
 
+  /** The settings a sink rebuild reads, compared with the ones last applied. */
+  struct SinkInputs {
+    std::string flush_level;
+    std::string pattern;
+    bool console = false;
+    bool debugger = false;
+    bool color = false;
+
+    bool operator==(const SinkInputs&) const = default;
+  };
+
   struct Slot {
     std::string name;
     std::string description;
@@ -131,7 +142,6 @@ struct Logger::State {
   static State& Instance();
 
   Logger& owner;
-  std::array<std::atomic<log::Level>, log::kMaxCategories> levels{};
   std::vector<Slot> slots;
   log::Level default_level = log::Level::kInfo;
   mutable std::mutex mutex;
@@ -155,8 +165,8 @@ struct Logger::State {
 
   std::atomic<u64> sequence = 0;
   std::chrono::system_clock::time_point start_time;
-  ScopeGuard level_watch;
-  std::vector<ScopeGuard> watches;
+  std::optional<SinkInputs> applied_sinks;
+  ScopeGuard settled_watch;
 };
 
 }  // namespace rex
@@ -164,6 +174,9 @@ struct Logger::State {
 namespace rex::log {
 
 Logger::State& GetLoggerInstance();
+
+/** True when the calling thread is inside a log sink. */
+bool IsInSinks();
 
 /** Returns the logs folder of the application root, without creating it. */
 std::filesystem::path DefaultLogFolder();

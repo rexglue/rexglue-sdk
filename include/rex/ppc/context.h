@@ -62,7 +62,7 @@ struct FPSCRPlatform {
    *
    * @param csr Control word to update.
    */
-  static void InitHostExceptions(u32& csr) noexcept { csr |= kExceptionMask; }
+  static constexpr void InitHostExceptions(u32& csr) noexcept { csr |= kExceptionMask; }
 };
 
 #elif defined(__aarch64__) || defined(_M_ARM64)
@@ -100,7 +100,7 @@ struct FPSCRPlatform {
    *
    * @param csr Control word to update.
    */
-  static inline void InitHostExceptions(u32& csr) noexcept { csr &= ~kExceptionMask; }
+  static constexpr void InitHostExceptions(u32& csr) noexcept { csr &= ~kExceptionMask; }
 };
 
 #else
@@ -237,7 +237,11 @@ constexpr u32 kRoundMask = 0x03;
 
 /** Floating point status and control register (FPSCR). */
 struct FPSCRRegister {
-  u32 csr; /**< Host floating point control word as last read or written. */
+  /**
+   * Host floating point control word as last read or written. A new register starts with every
+   * exception masked.
+   */
+  u32 csr = FPSCRPlatform::kExceptionsMasked;
 
   /** Host access to the floating point control word. */
   using Platform = FPSCRPlatform;
@@ -259,6 +263,14 @@ struct FPSCRRegister {
         return true;
       }(),
       "kHostToGuest must invert kGuestToHost");
+
+  static_assert(
+      [] {
+        u32 word = 0;
+        Platform::InitHostExceptions(word);
+        return word == FPSCRPlatform::kExceptionsMasked;
+      }(),
+      "A new register must hold the word InitHostExceptions makes from 0");
 
   /** Bits the guest owns, the rest is host policy set by InitHost. */
   static constexpr u32 kGuestMask = static_cast<u32>(kRoundMaskVal) | static_cast<u32>(kFlushMask);

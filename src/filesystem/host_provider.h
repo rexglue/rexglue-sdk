@@ -25,6 +25,8 @@
 
 namespace rex::filesystem {
 
+class HostStream;
+
 /** Serves a host folder. The tree is read at mount, a missing path is looked up on demand. */
 class HostProvider final : public Provider {
   struct Key {};
@@ -60,6 +62,8 @@ class HostProvider final : public Provider {
 
 /** A host file or folder. */
 class HostNode final : public Node {
+  friend class HostStream;
+
  public:
   /**
    * Creates a node without reading the host.
@@ -107,6 +111,21 @@ class HostNode final : public Node {
                                          bool replace_existing) override;
   void OnMoved() override;
   void Populate(std::vector<std::pair<u64, u64>>& ancestors);
+
+  /**
+   * Sets the cached size and allocation size after a length change.
+   *
+   * @param size The new size in bytes.
+   */
+  void SetSize(u64 size);
+
+  /**
+   * Raises the cached size and allocation size after a write. A size at or below the cached size
+   * changes nothing.
+   *
+   * @param size The end of the write in bytes.
+   */
+  void GrowSize(u64 size);
 
   [[nodiscard]] HostProvider& GetHostProvider() const {
     return static_cast<HostProvider&>(GetProvider());

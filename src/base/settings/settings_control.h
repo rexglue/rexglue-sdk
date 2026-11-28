@@ -22,19 +22,19 @@ namespace rex {
 /** Closes and opens writes for a setting lifetime. */
 REX_DECLARE_PRIVATE_INTERFACE(ISettingsRegistryControl, 1)
 /**
- * Closes writes for a setting lifetime. kStartupOnly closes after the modules init, just before
- * OnInit, kUntilLaunch when the title launches.
+ * Closes writes for a setting lifetime. kInitOnly closes after the modules init, just before
+ * OnInit, kLockedInGame when the title launches.
  *
- * @param life kStartupOnly or kUntilLaunch.
+ * @param mode kInitOnly or kLockedInGame.
  */
-  virtual void Freeze(SettingLife life) = 0;
+  virtual void Freeze(SettingMode mode) = 0;
 
   /**
    * Opens writes for a setting lifetime after a title unloads.
    *
-   * @param life kUntilLaunch.
+   * @param mode kLockedInGame.
    */
-  virtual void Thaw(SettingLife life) = 0;
+  virtual void Thaw(SettingMode mode) = 0;
 
   /** Applies REX_<SCOPE>_<NAME> variables to every setting, including those registered later. */
   virtual void ApplyEnvironment() = 0;

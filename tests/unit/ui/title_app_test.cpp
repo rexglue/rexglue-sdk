@@ -85,7 +85,11 @@ class FooApp : public rex::test::ObjectApp<rex::app::TitleApp> {
   std::filesystem::path game_root;
 
  protected:
-  rex::AppSysRequirements GetRequirements() const override { return {}; }
+  rex::AppSysRequirements GetRequirements() const override {
+    rex::AppSysRequirements needs;
+    needs.ui = display_;
+    return needs;
+  }
 
   void OnRegisterModules(std::vector<rex::IModule*>& providers) override {
     ObjectApp::OnRegisterModules(providers);

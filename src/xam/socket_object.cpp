@@ -117,6 +117,25 @@ bool IsClosed(const SocketObject& sock) {
   return true;
 }
 
+bool UnboundDatagram(const SocketObject& sock) {
+  if (sock.type != kXSockDgram || sock.bound_seen.load(std::memory_order_relaxed)) {
+    return false;
+  }
+  sockaddr_in host{};
+  i32 host_len = sizeof(host);
+  if (sock.socket.GetLocalName(reinterpret_cast<sockaddr*>(&host), &host_len) == 0 &&
+      host.sin_port != 0) {
+    sock.bound_seen.store(true, std::memory_order_relaxed);
+    return false;
+  }
+#if REX_PLATFORM_WIN32
+  SetHostError(WSAEINVAL);
+#else
+  SetHostError(EINVAL);
+#endif
+  return true;
+}
+
 bool WaitToRetry(const SocketObject& sock, SocketReady ready) {
   if (sock.nonblocking || !rex::platform::IsSocketWouldBlock() || IsClosed(sock)) {
     return false;
@@ -591,6 +610,9 @@ int SocketObject::Recv(u8* buf, u32 buf_len, u32 flags) const {
   if (buf_len > kMaxSocketLength) {
     return -1;
   }
+  if (UnboundDatagram(*this)) {
+    return -1;
+  }
   int ret;
   do {
     ret = socket.Recv(buf, static_cast<i32>(buf_len), static_cast<i32>(flags));
@@ -601,6 +623,9 @@ int SocketObject::Recv(u8* buf, u32 buf_len, u32 flags) const {
 int SocketObject::RecvFrom(u8* buf, u32 buf_len, u32 flags, N_XSOCKADDR_IN* from,
                            u32* from_len) const {
   if (buf_len > kMaxSocketLength) {
+    return -1;
+  }
+  if (UnboundDatagram(*this)) {
     return -1;
   }
   sockaddr_in nfrom{};
@@ -627,6 +652,12 @@ int SocketObject::RecvFrom(u8* buf, u32 buf_len, u32 flags, N_XSOCKADDR_IN* from
 
 ReceiveResult SocketObject::TryRecvFrom(u8* buf, u32 buf_len, u32 flags) const {
   ReceiveResult result;
+  if (UnboundDatagram(*this)) {
+    result.received = -1;
+    result.would_block = false;
+    result.error = rex::platform::GetSocketError();
+    return result;
+  }
   sockaddr_in nfrom{};
   i32 nfromlen = sizeof(nfrom);
   result.received =

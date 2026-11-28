@@ -16,6 +16,9 @@
 #include <deque>
 #include <memory>
 #include <mutex>
+#include <optional>
+#include <string>
+#include <utility>
 #include <thread>
 #include <vector>
 
@@ -24,6 +27,7 @@
 #include <rex/title.h>
 #include <rex/ui/ui_driver.h>
 #include <rex/ui/ui_event.h>
+#include <rex/ui/window.h>
 #include <rex/utility.h>
 #include <rex/settings_registry.h>
 #include <rex/types.h>
@@ -126,6 +130,34 @@ struct UISystem::State {
   bool block_acquired = false;
   std::chrono::steady_clock::time_point last_pointer_motion;
   std::vector<ScopeGuard> watches;
+
+  /** The fullscreen state last passed to the driver. */
+  struct AppliedFullscreen {
+    bool fullscreen = false;
+    bool exclusive = false;
+    i32 monitor = 0;
+    u32 mode_width = 0;
+    u32 mode_height = 0;
+
+    bool operator==(const AppliedFullscreen&) const = default;
+  };
+
+  /** The window limits last passed to the driver. */
+  struct AppliedLimits {
+    u32 min_width = 0;
+    u32 min_height = 0;
+    ui::AspectRatio ratio = ui::AspectRatio::kStretch;
+
+    bool operator==(const AppliedLimits&) const = default;
+  };
+
+  std::optional<AppliedFullscreen> applied_fullscreen;
+  std::optional<std::pair<u32, u32>> applied_size;
+  std::optional<AppliedLimits> applied_limits;
+  std::optional<std::string> applied_title;
+
+  AppliedFullscreen ResolveFullscreen() const;
+  AppliedLimits ResolveLimits() const;
 
   bool IsUIThread() const { return std::this_thread::get_id() == ui_thread; }
   void ExecutePosts();

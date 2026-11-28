@@ -9,12 +9,18 @@
  */
 
 #include <algorithm>
+#include <array>
 #include <cctype>
 #include <format>
+#include <optional>
+#include <string>
+#include <utility>
+#include <vector>
 
 #include <rex/setting.h>
 #include <rex/settings_registry.h>
 #include <rex/console_command.h>
+#include <rex/logging/log_category.h>
 #include <rex/platform/process.h>
 
 #include "base/settings/settings_internal.h"
@@ -45,63 +51,78 @@ SettingsRegistry& GetSettingsRegistry() {
 }
 
 Result<void> SettingsRegistry::Register(SettingOwner& owner) {
-  std::lock_guard lock(state_->mutex);
-  for (SettingBase* setting : owner.state_->settings) {
-    if (auto alias = state_->aliases.find(setting->GetName()); alias != state_->aliases.end()) {
-      return Err(
-          ErrorCategory::kConfig,
-          alias->second.empty()
-              ? std::format("{} cannot be registered, it is a removed name", setting->GetName())
-              : std::format("{} cannot be registered, it is an alias of {}", setting->GetName(),
-                            alias->second));
-    }
-    if (auto it = state_->settings.find(setting->GetName()); it != state_->settings.end()) {
-      return Err(ErrorCategory::kConfig,
-                 std::format("{} is registered by '{}' and '{}'", setting->GetName(),
-                             it->second->GetOwner().GetScope(), owner.GetScope()));
-    }
-  }
-  for (ConsoleCommand* command : owner.state_->commands) {
-    if (state_->commands.contains(command->GetName())) {
-      return Err(ErrorCategory::kConfig, std::format("{} is registered twice", command->GetName()));
-    }
-  }
-  for (SettingBase* setting : owner.state_->settings) {
-    state_->settings.emplace(setting->GetName(), setting);
-  }
-  for (ConsoleCommand* command : owner.state_->commands) {
-    state_->commands.emplace(command->GetName(), command);
-  }
-  owner.state_->registered = true;
-
-  for (SettingBase* setting : owner.state_->settings) {
-    const std::string& name = setting->GetName();
-    if (auto waiting = state_->waiting.find(name); waiting != state_->waiting.end()) {
-      auto layers = waiting->second;
-      state_->waiting.erase(waiting);
-      state_->awaiting.erase(name);
-      for (size_t i = 0; i < kSettingLayerCount; ++i) {
-        const auto& layer = layers[i];
-        if (!layer)
-          continue;
-        if (setting->GetLayer() > static_cast<SettingLayer>(i))
-          continue;
-        if (auto r = setting->SetText(static_cast<SettingLayer>(i), *layer); !r) {
-          state_->notices.push_back(r.error().GetDescription());
-        }
+  using Layers = std::array<std::optional<std::string>, kSettingLayerCount>;
+  std::vector<std::pair<SettingBase*, Layers>> replays;
+  bool env_active = false;
+  {
+    std::lock_guard lock(state_->mutex);
+    for (SettingBase* setting : owner.state_->settings) {
+      if (auto alias = state_->aliases.find(setting->GetName()); alias != state_->aliases.end()) {
+        return Err(
+            ErrorCategory::kConfig,
+            alias->second.empty()
+                ? std::format("{} cannot be registered, it is a removed name", setting->GetName())
+                : std::format("{} cannot be registered, it is an alias of {}", setting->GetName(),
+                              alias->second));
+      }
+      if (auto it = state_->settings.find(setting->GetName()); it != state_->settings.end()) {
+        return Err(ErrorCategory::kConfig,
+                   std::format("{} is registered by '{}' and '{}'", setting->GetName(),
+                               it->second->GetOwner().GetScope(), owner.GetScope()));
       }
     }
-    if (!state_->env_active)
+    for (ConsoleCommand* command : owner.state_->commands) {
+      if (state_->commands.contains(command->GetName())) {
+        return Err(ErrorCategory::kConfig,
+                   std::format("{} is registered twice", command->GetName()));
+      }
+    }
+    for (SettingBase* setting : owner.state_->settings) {
+      state_->settings.emplace(setting->GetName(), setting);
+    }
+    for (ConsoleCommand* command : owner.state_->commands) {
+      state_->commands.emplace(command->GetName(), command);
+    }
+    owner.state_->registered = true;
+    for (SettingBase* setting : owner.state_->settings) {
+      Layers layers;
+      if (auto waiting = state_->waiting.find(setting->GetName());
+          waiting != state_->waiting.end()) {
+        layers = std::move(waiting->second);
+        state_->waiting.erase(waiting);
+        state_->awaiting.erase(setting->GetName());
+      }
+      replays.emplace_back(setting, std::move(layers));
+    }
+    env_active = state_->env_active;
+  }
+  for (auto& [setting, layers] : replays) {
+    for (size_t i = 0; i < kSettingLayerCount; ++i) {
+      const auto& layer = layers[i];
+      if (!layer)
+        continue;
+      if (setting->GetLayer() > static_cast<SettingLayer>(i))
+        continue;
+      if (auto r = setting->SetText(static_cast<SettingLayer>(i), *layer); !r) {
+        state_->AddNotice(r.error().GetDescription());
+      }
+    }
+    if (!env_active)
       continue;
-    if (auto env = platform::GetEnvironmentValue(ToUpperEnv(name))) {
+    if (auto env = platform::GetEnvironmentValue(ToUpperEnv(setting->GetName()))) {
       if (setting->GetLayer() <= SettingLayer::kEnvironment) {
         if (auto r = setting->SetText(SettingLayer::kEnvironment, *env); !r) {
-          state_->notices.push_back(r.error().GetDescription());
+          state_->AddNotice(r.error().GetDescription());
         }
       }
     }
   }
   return Ok();
+}
+
+void SettingsRegistry::State::AddNotice(std::string text) {
+  std::lock_guard lock(mutex);
+  notices.push_back(std::move(text));
 }
 
 void SettingsRegistry::Detach(SettingBase& setting) {
@@ -115,16 +136,24 @@ void SettingsRegistry::Detach(ConsoleCommand& command) {
 }
 
 void SettingsRegistry::ApplyEnvironment() {
-  std::lock_guard lock(state_->mutex);
-  state_->env_active = true;
-  for (auto& [name, setting] : state_->settings) {
-    if (auto env = platform::GetEnvironmentValue(ToUpperEnv(name))) {
+  {
+    std::lock_guard lock(state_->mutex);
+    state_->env_active = true;
+  }
+  for (SettingBase* setting : Enumerate()) {
+    if (auto env = platform::GetEnvironmentValue(ToUpperEnv(setting->GetName()))) {
       if (setting->GetLayer() > SettingLayer::kEnvironment)
         continue;
       if (auto r = setting->SetText(SettingLayer::kEnvironment, *env); !r) {
-        state_->notices.push_back(r.error().GetDescription());
+        state_->AddNotice(r.error().GetDescription());
       }
     }
+  }
+}
+
+void SettingsRegistry::WaitForCommits() const {
+  for (const SettingBase* setting : Enumerate()) {
+    setting->WaitForCommit();
   }
 }
 
@@ -184,11 +213,8 @@ bool SettingsRegistry::ApplyOldLogFile(SettingLayer layer, std::string_view name
   if (text.empty()) {
     return true;
   }
-  {
-    std::lock_guard lock(state_->mutex);
-    state_->notices.push_back(
-        std::format("log.file {} is now log.file, app.log_root and log.file_name", text));
-  }
+  state_->AddNotice(
+      std::format("log.file {} is now log.file, app.log_root and log.file_name", text));
   const std::filesystem::path path{std::string(text)};
   result = SetText(layer, "log.file", "true");
   if (result && path.has_parent_path()) {
@@ -205,26 +231,30 @@ Result<void> SettingsRegistry::SetText(SettingLayer layer, std::string_view name
   if (Result<void> converted = Ok(); ApplyOldLogFile(layer, name, text, converted)) {
     return converted;
   }
-  std::lock_guard lock(state_->mutex);
-  std::string resolved(name);
-  if (auto alias = state_->aliases.find(name); alias != state_->aliases.end()) {
-    if (alias->second.empty()) {
-      state_->notices.push_back(std::format("{} was removed and is ignored", name));
+  SettingBase* setting = nullptr;
+  {
+    std::lock_guard lock(state_->mutex);
+    std::string resolved(name);
+    if (auto alias = state_->aliases.find(name); alias != state_->aliases.end()) {
+      if (alias->second.empty()) {
+        state_->notices.push_back(std::format("{} was removed and is ignored", name));
+        return Ok();
+      }
+      resolved = alias->second;
+      state_->notices.push_back(std::format("{} is now {}", name, resolved));
+    }
+    auto it = state_->settings.find(resolved);
+    if (it == state_->settings.end()) {
+      state_->waiting[resolved][static_cast<size_t>(layer)] = std::string(text);
+      state_->awaiting.insert(resolved);
       return Ok();
     }
-    resolved = alias->second;
-    state_->notices.push_back(std::format("{} is now {}", name, resolved));
+    setting = it->second;
   }
-  if (auto it = state_->settings.find(resolved); it != state_->settings.end()) {
-    SettingBase* setting = it->second;
-    if (layer < setting->GetLayer()) {
-      return Ok();
-    }
-    return setting->SetText(layer, text);
+  if (layer < setting->GetLayer()) {
+    return Ok();
   }
-  state_->waiting[resolved][static_cast<size_t>(layer)] = std::string(text);
-  state_->awaiting.insert(resolved);
-  return Ok();
+  return setting->SetText(layer, text);
 }
 
 Result<void> SettingsRegistry::SetText(std::string_view name, std::string_view text) {
@@ -232,15 +262,17 @@ Result<void> SettingsRegistry::SetText(std::string_view name, std::string_view t
       ApplyOldLogFile(SettingLayer::kRuntime, name, text, converted)) {
     return converted;
   }
-  std::lock_guard lock(state_->mutex);
   std::string resolved(name);
-  if (auto alias = state_->aliases.find(name); alias != state_->aliases.end()) {
-    if (alias->second.empty()) {
-      state_->notices.push_back(std::format("{} was removed and is ignored", name));
-      return Ok();
+  {
+    std::lock_guard lock(state_->mutex);
+    if (auto alias = state_->aliases.find(name); alias != state_->aliases.end()) {
+      if (alias->second.empty()) {
+        state_->notices.push_back(std::format("{} was removed and is ignored", name));
+        return Ok();
+      }
+      resolved = alias->second;
+      state_->notices.push_back(std::format("{} is now {}", name, resolved));
     }
-    resolved = alias->second;
-    state_->notices.push_back(std::format("{} is now {}", name, resolved));
   }
   auto found = Find(resolved);
   if (!found) {
@@ -260,15 +292,14 @@ bool SettingsRegistry::IsAlias(std::string_view name) const {
 }
 
 void SettingsRegistry::EndSession() {
-  std::lock_guard lock(state_->mutex);
-  for (auto& [name, setting] : state_->settings) {
-    if (setting->Store(setting->RenderDefault())) {
-      setting->state_->layer = SettingLayer::kDefault;
-      setting->state_->restart_pending = false;
-      setting->Publish();
-      setting->Notify();
+  for (SettingBase* setting : Enumerate()) {
+    if (auto reset = setting->Commit(SettingLayer::kDefault, setting->RenderDefault(),
+                                     SettingBase::CommitKind::kEnd);
+        !reset) {
+      REXSYS_ERROR("{}", reset.error().GetDescription());
     }
   }
+  std::lock_guard lock(state_->mutex);
   state_->waiting.clear();
   state_->awaiting.clear();
   state_->notices.clear();

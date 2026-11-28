@@ -8,11 +8,10 @@ The SDK declares these log categories. Each one has a setting such as `log.categ
 |---|---|
 | `core` | The core library, module loading, settings and the app lifecycle. |
 | `filesystem` | The mount table, links and file providers. |
-| `kernel` | The xboxkrnl kernel exports. |
+| `kernel` | The xboxkrnl kernel exports, and the [debug text of the title](../runtime/kernel.md#debug-text-of-the-title) unless the title sends it to a category of its own. |
 | `xam` | The XAM exports. |
 | `system` | Kernel objects, guest threads, guest memory and modules, and the host threads and memory behind them. |
 | `cpu` | Function dispatch and the PPC context. |
-| `title` | The debug text that the title writes through `DbgPrint` and `OutputDebugString`. |
 | `apu` | Guest audio, XMA decoding and the audio driver modules. |
 | `hid` | Input devices and the input driver modules. |
 | `ui` | Windows, presenters, overlays and ImGui. |
@@ -39,7 +38,7 @@ Each prefix forms the macros of one category, such as `REXGPU_INFO` and `REXGPU_
 
 The `core` failure macros have no `LOG` in their names: `REX_FAIL`, `REX_FATAL` and `REX_CHECK`.
 
-The prefixes of `kernel`, `title`, `xam`, `codegen` and `rexglue` are declared in private headers under `src`, not in the public headers.
+The prefixes of `kernel`, `xam`, `codegen` and `rexglue` are declared in private headers under `src`, not in the public headers.
 
 ## Level Letters
 

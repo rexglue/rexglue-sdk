@@ -33,6 +33,7 @@
 #include <rex/logging/log_category.h>
 #include <rex/memory/endian.h>
 #include "gpu/xenos/host/d3d12/d3d12_presenter.h"
+#include "gpu/xenos/host/present_policy.h"
 #include "gpu/xenos/host/d3d12/d3d12_objects.h"
 #include "gpu/xenos/host/renderdoc_api.h"
 
@@ -1876,6 +1877,7 @@ void D3D12CommandProcessor::IssueSwap([[maybe_unused]] u32 frontbuffer_ptr, u32 
   const VideoMode video_mode = title_info_.video_mode;
   u32 display_width = std::max(static_cast<u32>(1), video_mode.width);
   u32 display_height = std::max(static_cast<u32>(1), video_mode.height);
+  TryParsePresentAspect(GetXenosSettings().present_aspect.Get(), display_width, display_height);
 
   presenter->RefreshGuestOutput(
       guest_output_width, guest_output_height, display_width, display_height,
@@ -2268,8 +2270,7 @@ bool D3D12CommandProcessor::IssueDraw([[maybe_unused]] xenos::PrimitiveType prim
           bound_depth_and_color_render_target_formats, &pipeline_handle, &root_signature)) {
     return false;
   }
-  if (GetXenosSettings().async_shader_compilation.Get() &&
-      pipeline_cache_->GetD3D12PipelineByHandle(pipeline_handle) == nullptr) {
+  if (pipeline_cache_->GetD3D12PipelineByHandle(pipeline_handle) == nullptr) {
     return true;
   }
 
@@ -3311,7 +3312,8 @@ bool D3D12CommandProcessor::EndSubmission(bool is_swap) {
 }
 
 bool D3D12CommandProcessor::CanEndSubmissionImmediately() const {
-  return !submission_open_ || !pipeline_cache_->IsCreatingPipelines();
+  return !submission_open_ || GetXenosSettings().async_shader_compilation.Get() ||
+         !pipeline_cache_->IsCreatingPipelines();
 }
 
 void D3D12CommandProcessor::ClearCommandAllocatorCache() {

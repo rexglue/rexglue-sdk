@@ -63,6 +63,25 @@ REX_API std::string_view LevelName(Level level);
 namespace rex::log {
 
 class DetailAccess;
+class LogCategory;
+
+/** The number of category slots. */
+inline constexpr size_t kMaxCategories = 256;
+
+namespace detail {
+
+/** Effective level of one category slot. */
+struct SlotLevel {
+  std::atomic<Level> level{Level::kInfo};
+};
+
+/** The effective level of every slot, written by the logger when a level changes. */
+REX_API extern SlotLevel g_slot_levels[kMaxCategories];
+
+/** Resolves the slot of a category that has not written yet and returns its effective level. */
+REX_API Level ResolveCategoryLevel(const LogCategory& category);
+
+}  // namespace detail
 
 /**
  * Log category declared with REXLOG_CATEGORY and added with Logger::AddCategories. Copies with the
@@ -91,7 +110,13 @@ class REX_API LogCategory : public NonCopyable {
    *
    * @return True when the level is at or above the category's effective level.
    */
-  bool IsEnabled(Level level) const;
+  bool IsEnabled(Level level) const {
+    const u16 slot = slot_.load(std::memory_order_acquire);
+    const Level effective = slot == kUnresolved
+                                ? detail::ResolveCategoryLevel(*this)
+                                : detail::g_slot_levels[slot].level.load(std::memory_order_relaxed);
+    return level != Level::kOff && level >= effective;
+  }
 
  private:
   friend class DetailAccess;
@@ -136,6 +161,16 @@ void WriteFormatted(const LogCategory& category, Level level, std::format_string
  */
 REX_API void WriteStub(const LogCategory& category, std::atomic_flag& seen, std::string_view name,
                        std::string_view detail);
+
+/**
+ * Writes a stub call that returns a value. The first call of each stub is a warning, later calls
+ * are Dev. The text is formatted only when the level is enabled.
+ *
+ * @param seen Per stub flag, set by the first call.
+ * @param value The value the stub returns.
+ */
+REX_API void WriteStubValue(const LogCategory& category, std::atomic_flag& seen,
+                            std::string_view name, u32 value);
 
 /** Collects categories for Logger::AddCategories. */
 template <typename... Categories>
@@ -443,8 +478,8 @@ REXLOG_CATEGORY(console, "Console command output")
  *
  * Every prefix has TRACE, DEV, DEBUG, INFO, WARN, ERROR, CRITICAL, WARN_ONCE, FAIL, FATAL and
  * CHECK. REXLOG_ is core, with REX_FAIL, REX_FATAL and REX_CHECK. REXSYS_ is system, REXFS_
- * filesystem and REXCON_ console. Kernel, title, XAM, codegen and rexglue define theirs beside
- * their categories.
+ * filesystem and REXCON_ console. Kernel, XAM, codegen and rexglue define theirs beside their
+ * categories.
  */
 #define REXLOG_TRACE(fmt, ...) REXLOG_CAT_TRACE(::rex::log::core, fmt __VA_OPT__(, ) __VA_ARGS__)
 #define REXLOG_DEV(fmt, ...) REXLOG_CAT_DEV(::rex::log::core, fmt __VA_OPT__(, ) __VA_ARGS__)

@@ -19,14 +19,14 @@ namespace rex::kernel {
 class REX_KERNEL_API RuntimeSettings final : public SettingOwner {
  public:
   REX_SETTING(u32, heap_size_mb, 256, "First shim heap segment in MiB", Range{4, 2048},
-              kUntilLaunch);
+              kLockedInGame);
   REX_SETTING(u32, title_memory_mb, 480, "Title memory in MiB, 0 removes the cap", Range{0, 512},
-              kUntilLaunch);
+              kLockedInGame);
   REX_SETTING(bool, writable_code_segments, false, "Load code and read only data writable",
-              kUntilLaunch);
-  REX_SETTING(bool, protect_zero, true, "The first 64 KiB fault on any access", kUntilLaunch);
-  REX_SETTING(bool, protect_on_release, false, "Released memory faults on access", kUntilLaunch);
-  REX_SETTING(bool, scribble_heap, false, "Fill new heap memory with a pattern", kUntilLaunch);
+              kLockedInGame);
+  REX_SETTING(bool, protect_zero, true, "The first 64 KiB fault on any access", kLockedInGame);
+  REX_SETTING(bool, protect_on_release, false, "Released memory faults on access", kLockedInGame);
+  REX_SETTING(bool, scribble_heap, false, "Fill new heap memory with a pattern", kLockedInGame);
   REX_SETTING(bool, ignore_thread_priorities, true, "Ignore guest thread priorities");
   REX_SETTING(bool, ignore_thread_affinities, true, "Ignore guest thread affinities");
   REX_SETTING(bool, ffmpeg_verbose, false, "Log FFmpeg messages for XMA decoding");

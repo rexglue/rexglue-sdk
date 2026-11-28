@@ -60,6 +60,7 @@ struct Device {
   rex::hid::PadDevice pad;
   bool synthetic = false; /**< Keyboard and mouse and the idle pad take no ordinal. */
   bool counts = true;     /**< Counts as a connected pad of its user. */
+  u16 seen_buttons = 0;   /**< The buttons down at the last read. */
   u32 ordinal = 0;
 };
 
@@ -233,6 +234,7 @@ class KeyboardMousePad final : public rex::hid::IInputDriver {
   Result<rex::hid::PadCapabilities> GetDeviceCapabilities(rex::hid::PadDeviceID id) override;
   Result<void> SetDeviceVibration(rex::hid::PadDeviceID id,
                                   const rex::hid::PadVibration& vibration) override;
+  u16 TakeDevicePresses(rex::hid::PadDeviceID id) override;
 
   /** Reports whether the keyboard feeds keystrokes and no pad. */
   bool IsPassthrough() const;
@@ -259,6 +261,7 @@ class KeyboardMousePad final : public rex::hid::IInputDriver {
   void OnMotion(const InputEvent& event);
   void OnFocusLost();
   void SetKeyState(u16 key, bool down);
+  void LatchPresses(u16 key);
   void PushKeystroke(const rex::hid::PadKeystroke& keystroke);
   bool IsPressed(size_t index) const;
 
@@ -269,6 +272,7 @@ class KeyboardMousePad final : public rex::hid::IInputDriver {
   std::array<std::vector<KeyChord>, kBindCount> binds_;
   u32 bind_generation_ = 0;
   bool key_down_[256] = {};
+  u16 pressed_ = 0;
   f32 mouse_dx_ = 0.0f;
   f32 mouse_dy_ = 0.0f;
   std::deque<rex::hid::PadKeystroke> queue_;

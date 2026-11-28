@@ -1,18 +1,18 @@
 name: Set up toolchain
-description: Installs the compiler, build tools, system packages and Vulkan SDK that a platform build needs
+description: Installs the compiler, build tools and system packages that a platform build needs, and the Vulkan SDK on macOS
 
 inputs:
   platform:
     description: "win-amd64 | mac-amd64 | mac-arm64 | linux-amd64 | linux-arm64"
     required: true
   vulkan-sdk-version:
-    description: "Version of the LunarG Vulkan SDK to install"
+    description: "Version of the LunarG Vulkan SDK to install on macOS"
     required: false
     default: "1.4.363.1"
   llvm-version:
     description: "Version of the official LLVM Windows installer that provides clang on Windows"
     required: false
-    default: "20.1.8"
+    default: "22.1.8"
 
 runs:
   using: composite
@@ -33,20 +33,6 @@ runs:
         $llvm = "C:\Program Files\LLVM\bin"
         $llvm | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
         & (Join-Path $llvm "clang.exe") --version
-
-    - name: Install Vulkan SDK (Windows)
-      if: inputs.platform == 'win-amd64'
-      shell: pwsh
-      env:
-        VULKAN_SDK_VERSION: ${{ inputs.vulkan-sdk-version }}
-      run: |
-        $root = "C:\VulkanSDK\$env:VULKAN_SDK_VERSION"
-        Invoke-WebRequest -Uri "https://sdk.lunarg.com/sdk/download/$env:VULKAN_SDK_VERSION/windows/vulkan_sdk.exe" -OutFile vulkan_sdk.exe
-        .\vulkan_sdk.exe --root $root --accept-licenses --default-answer --confirm-command install com.lunarg.vulkan.vma copy_only=1
-        if (-not ((Test-Path "$root\Include\vma\vk_mem_alloc.h") -or (Test-Path "$root\Include\vk_mem_alloc.h"))) {
-          throw "The Vulkan SDK install has no vk_mem_alloc.h below $root\Include, so the VMA component was not installed"
-        }
-        "VULKAN_SDK=$root" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
     - name: Install clang 20 (linux)
       if: startsWith(inputs.platform, 'linux-')
@@ -84,7 +70,11 @@ runs:
         curl -fsSL -o vulkan_sdk.zip "https://sdk.lunarg.com/sdk/download/${VULKAN_SDK_VERSION}/mac/vulkan_sdk.zip"
         unzip -q vulkan_sdk.zip
         installer=$(ls -d vulkansdk-*.app | head -n 1)
-        sudo "${installer}/Contents/MacOS/${installer%.app}" --root "${root}" --accept-licenses --default-answer --confirm-command install copy_only=1
+        sudo "${installer}/Contents/MacOS/${installer%.app}" --root "${root}" --accept-licenses --default-answer --confirm-command install com.lunarg.vulkan.vma copy_only=1
+        if [ ! -f "${root}/macOS/include/vma/vk_mem_alloc.h" ] && [ ! -f "${root}/macOS/include/vk_mem_alloc.h" ]; then
+          echo "error: the Vulkan SDK install has no vk_mem_alloc.h below ${root}/macOS/include, so the VMA component was not installed" >&2
+          exit 1
+        fi
         before=$(env | sort)
         old_path="$PATH"
         source "${root}/setup-env.sh"
@@ -103,22 +93,6 @@ runs:
           libwayland-dev libwayland-bin wayland-protocols libxkbcommon-dev libdecor-0-dev \
           libasound2-dev libpulse-dev libpipewire-0.3-dev
 
-    - name: Install Vulkan SDK (linux-amd64)
-      if: inputs.platform == 'linux-amd64'
-      shell: bash
-      env:
-        VULKAN_SDK_VERSION: ${{ inputs.vulkan-sdk-version }}
-      run: |
-        curl -fsSL -o vulkan_sdk.tar.xz "https://sdk.lunarg.com/sdk/download/${VULKAN_SDK_VERSION}/linux/vulkan_sdk.tar.xz"
-        mkdir -p "$HOME/vulkan"
-        tar -xf vulkan_sdk.tar.xz -C "$HOME/vulkan"
-        before=$(env | sort)
-        old_path="$PATH"
-        source "$HOME/vulkan/${VULKAN_SDK_VERSION}/setup-env.sh"
-        after=$(env | sort)
-        comm -13 <(echo "$before") <(echo "$after") | grep -v -e '^PATH=' -e '^_=' >> "$GITHUB_ENV"
-        echo "${PATH%"$old_path"}" | tr ':' '\n' | sed '/^$/d' >> "$GITHUB_PATH"
-
     - name: Install build deps (linux-arm64)
       if: inputs.platform == 'linux-arm64'
       shell: bash
@@ -127,6 +101,6 @@ runs:
       run: |
         sudo apt update
         sudo apt install -y cmake ninja-build build-essential git curl unzip autoconf python3.12-venv \
-          libgtk-3-dev libx11-xcb-dev libxss-dev libvulkan-dev libvulkan-memory-allocator-dev \
+          libgtk-3-dev libx11-xcb-dev libxss-dev \
           libwayland-dev libwayland-bin wayland-protocols libxkbcommon-dev libdecor-0-dev \
           libasound2-dev libpulse-dev libpipewire-0.3-dev

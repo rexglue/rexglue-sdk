@@ -33,6 +33,7 @@ class InputSystem final : public rex::hid::IInputSystem {
 
   rex::hid::InputSettings& GetSettings() override { return settings_; }
   [[nodiscard]] Result<PadReading> GetState(u32 user) override;
+  [[nodiscard]] Result<u16> TakePadPresses(u32 user) override;
   [[nodiscard]] Result<rex::hid::PadCapabilities> GetCapabilities(u32 user) override;
   [[nodiscard]] Result<void> SetVibration(u32 user, const rex::hid::PadVibration& motors) override;
   [[nodiscard]] Result<rex::hid::PadKeystroke> GetKeystroke(u32 user,

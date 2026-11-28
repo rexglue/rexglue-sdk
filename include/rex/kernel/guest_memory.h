@@ -33,7 +33,7 @@ enum class GuestProtect : u8 {
 };
 
 enum class GuestHeap : u8 {
-  kTitle,    /**< Virtual memory in 64 KiB pages, which does not count against the title budget. */
+  kTitle,    /**< Virtual memory in 64 KiB pages, which counts against the title budget. */
   kSystem,   /**< System memory, kept apart from title memory and zeroed. */
   kPhysical, /**< Physical memory in 64 KiB pages, which counts against the title budget. */
 };
@@ -114,7 +114,8 @@ class REX_KERNEL_API GuestMemory {
    *
    * @param size The size in bytes.
    * @param alignment A power of two, at least 4096 for title memory.
-   * @param heap The heap, title memory by default. Physical is the 64 KiB window at 0xA0000000.
+   * @param heap The heap, title memory by default. Title and physical memory count against the
+   * title budget, system memory does not. Physical is the 64 KiB window at 0xA0000000.
    * @return The address, or a kMemory error.
    */
   [[nodiscard]] Result<u32> Allocate(u32 size, u32 alignment, GuestProtect protect,

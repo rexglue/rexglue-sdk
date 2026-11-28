@@ -455,3 +455,111 @@ REX_TEST_CASE("a keyboard keystroke stays queued while only the pad is asked for
   CHECK_FALSE(input.GetKeystroke(0, kAllSources).has_value());
   app.Shutdown();
 }
+
+REX_TEST_CASE("a pad press between two reads is kept once", "[hid]") {
+  Run("fake_a", [](rex::hid::IInputSystem& input) {
+    g_fake[0].devices = {MakePad(1, 0)};
+    g_fake[0].states[1] = Buttons(0);
+    REQUIRE(input.TakePadPresses(0).has_value());
+
+    g_fake[0].presses[1] = rex::hid::kPadA;
+    auto pressed = input.TakePadPresses(0);
+    REQUIRE(pressed.has_value());
+    CHECK(*pressed == rex::hid::kPadA);
+    CHECK(*input.TakePadPresses(0) == 0);
+    CHECK_FALSE(input.TakePadPresses(1).has_value());
+  });
+}
+
+REX_TEST_CASE("a held pad button is one press", "[hid]") {
+  Run("fake_a", [](rex::hid::IInputSystem& input) {
+    g_fake[0].devices = {MakePad(1, 0)};
+    g_fake[0].states[1] = Buttons(0);
+    REQUIRE(input.TakePadPresses(0).has_value());
+
+    g_fake[0].states[1] = Buttons(rex::hid::kPadB);
+    CHECK(*input.TakePadPresses(0) == rex::hid::kPadB);
+    CHECK(*input.TakePadPresses(0) == 0);
+    REQUIRE(input.GetState(0).has_value());
+    CHECK(*input.TakePadPresses(0) == 0);
+
+    g_fake[0].states[1] = Buttons(0);
+    CHECK(*input.TakePadPresses(0) == 0);
+    g_fake[0].states[1] = Buttons(rex::hid::kPadB);
+    CHECK(*input.TakePadPresses(0) == rex::hid::kPadB);
+  });
+}
+
+REX_TEST_CASE("a press seen by a state read is still taken", "[hid]") {
+  Run("fake_a", [](rex::hid::IInputSystem& input) {
+    g_fake[0].devices = {MakePad(1, 0)};
+    g_fake[0].states[1] = Buttons(0);
+    REQUIRE(input.GetState(0).has_value());
+    g_fake[0].states[1] = Buttons(rex::hid::kPadX);
+    REQUIRE(input.GetState(0).has_value());
+    g_fake[0].states[1] = Buttons(0);
+    REQUIRE(input.GetState(0).has_value());
+    CHECK(*input.TakePadPresses(0) == rex::hid::kPadX);
+  });
+}
+
+REX_TEST_CASE("pad presses are dropped while a UI block is held", "[hid]") {
+  Run("fake_a", [](rex::hid::IInputSystem& input) {
+    g_fake[0].devices = {MakePad(1, 0)};
+    g_fake[0].states[1] = Buttons(0);
+    REQUIRE(input.TakePadPresses(0).has_value());
+
+    input.AcquireUIBlock();
+    g_fake[0].presses[1] = rex::hid::kPadA;
+    CHECK(*input.TakePadPresses(0) == 0);
+    g_fake[0].states[1] = Buttons(rex::hid::kPadB);
+    CHECK(*input.TakePadPresses(0) == 0);
+
+    input.ReleaseUIBlock();
+    CHECK(*input.TakePadPresses(0) == 0);
+    g_fake[0].presses[1] = rex::hid::kPadY;
+    CHECK(*input.TakePadPresses(0) == rex::hid::kPadY);
+  });
+}
+
+REX_TEST_CASE("pad presses mask guide when off", "[hid]") {
+  Run("fake_a", [](rex::hid::IInputSystem& input) {
+    g_fake[0].devices = {MakePad(1, 0)};
+    g_fake[0].states[1] = Buttons(0);
+    g_fake[0].presses[1] = rex::hid::kPadGuide | rex::hid::kPadA;
+    CHECK(*input.TakePadPresses(0) == rex::hid::kPadA);
+    REQUIRE(input.GetSettings().guide_button.Set(true));
+    g_fake[0].presses[1] = rex::hid::kPadGuide;
+    CHECK(*input.TakePadPresses(0) == rex::hid::kPadGuide);
+  });
+}
+
+REX_TEST_CASE("shared pads send every pad press to user 0", "[hid]") {
+  Run(
+      "fake_a",
+      [](rex::hid::IInputSystem& input) {
+        g_fake[0].devices = {MakePad(1, 0), MakePad(2, 1)};
+        g_fake[0].states[1] = Buttons(0);
+        g_fake[0].states[2] = Buttons(0);
+        g_fake[0].presses[2] = rex::hid::kPadStart;
+        CHECK(*input.TakePadPresses(0) == rex::hid::kPadStart);
+        CHECK_FALSE(input.TakePadPresses(1).has_value());
+      },
+      true);
+}
+
+REX_TEST_CASE("a keyboard tap between two reads is a pad press", "[hid]") {
+  rex::test_ui::UIApp app;
+  app.input_drivers = "none";
+  REQUIRE(app.Start());
+  rex::hid::IInputSystem& input = app.GetInput();
+  REQUIRE(input.GetSettings().mnk_mode.Set(true));
+  REQUIRE(input.TakePadPresses(0).has_value());
+
+  rex::test_ui::DeliverKey(rex::InputEvent::Type::kKeyDown, rex::VirtualKey::kSpace);
+  rex::test_ui::DeliverKey(rex::InputEvent::Type::kKeyUp, rex::VirtualKey::kSpace);
+  app.Pump();
+  CHECK(*input.TakePadPresses(0) == rex::hid::kPadA);
+  CHECK(*input.TakePadPresses(0) == 0);
+  app.Shutdown();
+}

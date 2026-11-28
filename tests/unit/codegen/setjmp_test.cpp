@@ -64,7 +64,55 @@ bool SnapshotsAndReloads(const std::string& body, std::string_view reg) {
   return stored != std::string::npos && stored < snapshot && loaded != std::string::npos;
 }
 
+constexpr u32 Branch(u32 from_index, u32 to_index) {
+  return BranchLink(from_index, to_index) & ~1u;
+}
+
+constexpr u32 kNop = 0x60000000;
+
+std::string GenerateThunkCaller(const std::vector<u32>& thunk, std::string_view target_key) {
+  std::vector<u32> words = {kMrR31R3, BranchLink(1, 3), kBlr};
+  words.insert(words.end(), thunk.begin(), thunk.end());
+  const u32 target_index = static_cast<u32>(words.size());
+  words.push_back(kLiR3Zero);
+  words.push_back(kBlr);
+  words[3 + thunk.size() - 1] = Branch(3 + static_cast<u32>(thunk.size()) - 1, target_index);
+  const rex::test::PDataEntry pdata[] = {
+      {Address(0), 3}, {Address(3), static_cast<u32>(thunk.size())}, {Address(target_index), 2}};
+  rex::test::TempFolder folder;
+  const auto result = rex::test::GenerateFromImage(
+      folder, rex::test::BuildCodeImage(words, pdata),
+      std::format("{} = 0x{:08X}\n", target_key, Address(target_index)));
+  INFO((result ? std::string() : result.error().message));
+  REQUIRE(result);
+  const auto tree = rex::test::ReadGeneratedTree(folder.path / "generated" / "entry");
+  const auto begin = tree.find("DEFINE_REX_FUNC(xstart)");
+  REQUIRE(begin != std::string::npos);
+  return tree.substr(begin, tree.find("\n}\n", begin) - begin);
+}
+
 }  // namespace
+
+REX_TEST_CASE("A call to a thunk that only branches to setjmp emits the setjmp expansion",
+              "[codegen][setjmp]") {
+  const auto body = GenerateThunkCaller({0}, "setjmp_address");
+  CHECK(body.find("ppc_setjmp(") != std::string::npos);
+  CHECK(body.find("sub_") == std::string::npos);
+}
+
+REX_TEST_CASE("A call to a thunk that only branches to longjmp emits the longjmp call",
+              "[codegen][setjmp]") {
+  const auto body = GenerateThunkCaller({0}, "longjmp_address");
+  CHECK(body.find("ppc_longjmp(") != std::string::npos);
+  CHECK(body.find("sub_") == std::string::npos);
+}
+
+REX_TEST_CASE("A function that does more than branch to setjmp is called as a function",
+              "[codegen][setjmp]") {
+  const auto body = GenerateThunkCaller({kNop, 0}, "setjmp_address");
+  CHECK(body.find("ppc_setjmp(") == std::string::npos);
+  CHECK(body.find("sub_") != std::string::npos);
+}
 
 REX_TEST_CASE("A setjmp call writes r31 to ctx before the snapshot and reads it back",
               "[codegen][setjmp]") {

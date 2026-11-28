@@ -30,7 +30,7 @@ inline constexpr size_t kMaxTags = 16;
 struct TagStats {
   u64 live_bytes = 0;  /**< Bytes allocated and not yet freed. */
   u64 live_count = 0;  /**< Allocations not yet freed. */
-  u64 peak_bytes = 0;  /**< Highest value live_bytes reached. */
+  u64 peak_bytes = 0;  /**< Highest live_bytes seen at a sample, see GetHostStats. */
   u64 total_count = 0; /**< Allocations made since the start of the process. */
 };
 
@@ -65,7 +65,13 @@ REX_API void HostFree(void* ptr, size_t size = 0, size_t align = 0) noexcept;
  */
 REX_API size_t HostSize(const void* ptr) noexcept;
 
-/** Returns a snapshot of the counters, not atomic across tags. */
+/**
+ * Returns a snapshot of the counters, not atomic across tags. Each thread counts into its own
+ * shard, so live_bytes and live_count are sums that can lag a block in flight by a few operations.
+ * peak_bytes is the highest live_bytes seen at a sample. A sample runs in every call to this
+ * function and in every 4096th allocation of a thread under one tag, so a short peak between
+ * samples is not reported.
+ */
 REX_API HostStats GetHostStats() noexcept;
 
 /**

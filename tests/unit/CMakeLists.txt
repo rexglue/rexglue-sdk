@@ -3,6 +3,7 @@ set(CMAKE_FOLDER "tests/unit")
 add_executable(
   unit_tests
   test_memory.cpp
+  benchmark_pool.cpp
   crash_child_runner.cpp
   hid/xam_input_error_test.cpp
   apu/audio_system_test.cpp
@@ -17,6 +18,7 @@ add_executable(
   kernel/heap_allocation_test.cpp
   kernel/access_violation_test.cpp
   kernel/memory_budget_test.cpp
+  kernel/kernel_pool_test.cpp
   base/byte_swap_test.cpp
   base/mapped_memory_test.cpp
   base/file_mapping_test.cpp
@@ -38,13 +40,14 @@ add_executable(
   gpu/vblank_pacing_test.cpp
   gpu/shader_interpreter_test.cpp
   gpu/shader_translation_test.cpp
+  gpu/draw_path_benchmark_test.cpp
   gpu/tessellation_glsl_test.cpp
   kernel/be_ptr_test.cpp
   kernel/exit_title_test.cpp
   kernel/xam_input_test.cpp
   kernel/object_table_test.cpp
   kernel/shim_crt_test.cpp
-  kernel/shim_debug_test.cpp
+  kernel/title_debug_output_test.cpp
   kernel/shim_math_test.cpp
   kernel/shim_registry_test.cpp
   kernel/exports_test.cpp
@@ -64,6 +67,8 @@ add_executable(
   kernel/varargs_test.cpp
   kernel/shutdown_test.cpp
   kernel/threads_test.cpp
+  kernel/wait_spin_test.cpp
+  kernel/critical_section_benchmark_test.cpp
   kernel/files_test.cpp
   kernel/memory_test.cpp
   kernel/net_test.cpp
@@ -79,6 +84,10 @@ add_executable(
   kernel/xam_test.cpp
   kernel/xmp_test.cpp
   kernel/identity_test.cpp
+  kernel/object_resolve_benchmark_test.cpp
+  kernel/wait_poll_benchmark_test.cpp
+  kernel/irql_benchmark_test.cpp
+  kernel/dbgprint_test.cpp
   kernel/interrupt_test.cpp
   kernel/dpc_test.cpp
   kernel/notify_test.cpp
@@ -100,6 +109,7 @@ add_executable(
   base/module_group_test.cpp
   base/module_served_test.cpp
   base/logger_test.cpp
+  base/stub_log_test.cpp
   base/math_test.cpp
   base/propagate_const_test.cpp
   base/sleep_test.cpp
@@ -233,6 +243,7 @@ add_executable(
   codegen/setjmp_test.cpp
   codegen/skip_lr_test.cpp
   codegen/call_usage_test.cpp
+  codegen/non_volatile_live_in_test.cpp
   codegen/function_scanner_test.cpp
   codegen/hook_scan_test.cpp
   codegen/manifest_test.cpp
@@ -307,7 +318,7 @@ target_link_libraries(
           xxHash::xxhash
           Catch2::Catch2WithMain
           SDL3::Headers
-          Vulkan::Headers
+          rex-vulkan-headers
 )
 target_compile_definitions(
   unit_tests PRIVATE REX_BUILDING_KERNEL REX_BUILDING_XAM REX_BUILDING_APP REX_BUILDING_HID
@@ -433,6 +444,7 @@ target_compile_definitions(unit_tests PRIVATE REX_GPU_XENOS_STATIC)
 add_dependencies(
   unit_tests
   rexmod-test-nomodule
+  rexmod-test-alloc
   rexapu-sdl3
   rexhid-sdl3
   rexui-sdl3
@@ -521,9 +533,13 @@ target_include_directories(
   midasm-generated-hooks PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/midasm_generated
 )
 target_link_libraries(midasm-generated-hooks PRIVATE rexkernel)
+# The test below builds this target after unit_tests writes declarations.inc, so rexglue_tests
+# leaves it out.
 set_target_properties(
-  midasm-generated-hooks PROPERTIES EXPORT_COMPILE_COMMANDS OFF RUNTIME_OUTPUT_DIRECTORY
-                                                                $<TARGET_FILE_DIR:rexkernel>
+  midasm-generated-hooks
+  PROPERTIES EXPORT_COMPILE_COMMANDS OFF
+             RUNTIME_OUTPUT_DIRECTORY $<TARGET_FILE_DIR:rexkernel>
+             REXGLUE_BUILT_BY_TEST ON
 )
 if (UNIX AND NOT APPLE)
   rexglue_set_rpath(midasm-generated-hooks "$ORIGIN")
@@ -613,6 +629,10 @@ elseif (REXGLUE_ENABLE_SANITIZERS)
     "UBSAN_OPTIONS=handle_segv=0:handle_sigbus=0:handle_abort=0:handle_sigfpe=0:handle_sigill=0"
   )
 endif ()
+# SDL_ASSERT=always_ignore makes SDL print an assert and go on instead of waiting on a dialog. A run
+# with no display reaches an SDL assert on Windows.
+# A [benchmark] case runs once here, with one sample and no warm up, to check that it runs. Its
+# figures come only from the rextest_benchmark_all target, see Benchmarks in the contributing page.
 catch_discover_tests(
   unit_tests
   DISCOVERY_MODE
@@ -621,9 +641,16 @@ catch_discover_tests(
   TEST_PREFIX
   "unit."
   ADD_TAGS_AS_LABELS
+  EXTRA_ARGS
+  --benchmark-samples
+  1
+  --benchmark-warmup-time
+  0
   PROPERTIES
   TIMEOUT
   60
+  ENVIRONMENT
+  "SDL_ASSERT=always_ignore"
 )
 catch_discover_tests(
   cross_module_tests
@@ -635,4 +662,6 @@ catch_discover_tests(
   PROPERTIES
   TIMEOUT
   60
+  ENVIRONMENT
+  "SDL_ASSERT=always_ignore"
 )

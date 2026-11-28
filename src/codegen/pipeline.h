@@ -141,4 +141,13 @@ namespace rex::codegen::detail {
  */
 [[nodiscard]] Result<void> ValidateGraph(CodegenContext& ctx);
 
+/**
+ * With non_volatile_as_local, warns about each function that reads a non volatile register before
+ * it writes it, which reads zero from the function's own locals instead of the value its caller
+ * set. Logs one warning per function and a summary. Runs after ValidateGraph.
+ *
+ * @param ctx CodegenContext with the function graph built
+ */
+void WarnNonVolatileLiveIns(CodegenContext& ctx);
+
 }  // namespace rex::codegen::detail

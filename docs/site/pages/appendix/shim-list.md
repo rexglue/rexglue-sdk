@@ -2,7 +2,7 @@
 
 ## Shims
 
-The shim registry in `rex/kernel/shim.h` lists 69 shims in seven groups. See [Shims](../runtime/shims.md) for how to enable a shim.
+The shim registry in `rex/kernel/shim.h` lists 68 shims in six groups. See [Shims](../runtime/shims.md) for how to enable a shim.
 
 ### `file`
 
@@ -54,12 +54,12 @@ These shims copy and fill memory.
 |---|---|
 | `memcpy` | Copies memory. |
 | `memmove` | Copies overlapping memory. |
-| `memset` | Fills memory. |
+| `memset` | Fills memory with a byte value. |
 | `memchr` | Finds a byte in memory. |
-| `XMemCpy` | Copies memory. |
-| `XMemSet` | Fills memory. |
-| `XMemSet128` | Fills memory with a byte value. |
-| `memset_vmx` | Fills memory with a byte value. |
+| `XMemCpy` | The copy routine of the XAM library. Copies like `memcpy`. |
+| `XMemSet` | The fill routine of the XAM library. Fills like `memset`. |
+| `XMemSet128` | A second fill routine that takes the arguments of `memset` and fills like it. |
+| `memset_vmx` | A vector (VMX) fill routine that takes the arguments of `memset` and fills like it. |
 | `memcpy_s` | Copies memory with a size check. |
 | `memmove_s` | Copies overlapping memory with a size check. |
 
@@ -101,14 +101,6 @@ These shims compute floating point math and convert text to numbers.
 |---|---|
 | `atan2` | Returns the arc tangent of y over x. |
 | `atof` | Parses a floating point number, independent of the locale. |
-
-### `debug`
-
-This shim writes debug output to the log.
-
-| Name | Description |
-|---|---|
-| `DebugPrint` | Logs a formatted debug message at `debug` level, converted from Shift-JIS to UTF-8. |
 
 ### `threading`
 

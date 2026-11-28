@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <utility>
 
 #include <rex/chrono.h>
 #include <rex/input_keys.h>
@@ -75,6 +76,7 @@ struct InputSystem::State {
   std::array<detail::KeystrokeSynth, detail::kMaxUsers> synth;
   std::array<bool, detail::kMaxUsers> connected{};
   std::array<u16, detail::kMaxUsers> consumed{};
+  std::array<u16, detail::kMaxUsers> presses{};
   std::array<u32, detail::kMaxUsers> packet{};
   std::array<rex::hid::PadState, detail::kMaxUsers> last_state{};
   std::array<u64, detail::kMaxUsers> last_signature{};
@@ -161,6 +163,11 @@ void InputSystem::State::RefreshDevicesLocked(std::vector<ConnectionEvent>& even
   }
 
   detail::AssignOrdinals(devices, seen);
+  for (detail::Device& device : seen) {
+    if (const detail::Device* old = FindDeviceLocked(device.key)) {
+      device.seen_buttons = old->seen_buttons;
+    }
+  }
   for (const detail::Device& old : devices) {
     if (std::ranges::none_of(seen,
                              [&](const detail::Device& device) { return device.key == old.key; })) {
@@ -188,6 +195,7 @@ void InputSystem::State::UpdateConnectionsLocked(std::vector<ConnectionEvent>& e
     } else {
       REXHID_INFO("Controller disconnected from user {}.", user);
       consumed[user] = 0;
+      presses[user] = 0;
     }
     events.push_back({user, now});
   }
@@ -222,6 +230,17 @@ Result<rex::hid::PadState> InputSystem::State::ReadRawLocked(u32 user) {
       *state = rex::hid::PadState{};
     }
     active.Observe(user, key, *state);
+    u16 pressed = sources[key.source]->TakeDevicePresses(key.id);
+    for (detail::Device& device : devices) {
+      if (device.key == key) {
+        pressed |= static_cast<u16>(state->buttons & ~device.seen_buttons);
+        device.seen_buttons = state->buttons;
+        break;
+      }
+    }
+    if (ui_blocks.load() == 0 && !(key.source == keyboard_mouse_source && !IsActive())) {
+      presses[user] |= pressed;
+    }
     if (!any) {
       merged = *state;
       any = true;
@@ -379,6 +398,33 @@ Result<InputSystem::PadReading> InputSystem::GetState(u32 user) {
     if (state.started) {
       state.RefreshDevicesLocked(events);
       result = state.ReadUserLocked(user);
+    }
+  }
+  state.Fire(events);
+  return result;
+}
+
+Result<u16> InputSystem::TakePadPresses(u32 user) {
+  State& state = *state_;
+  std::vector<ConnectionEvent> events;
+  Result<u16> result = std::unexpected(NotFound("input is not started"));
+  {
+    std::lock_guard lock(state.mutex);
+    if (state.started) {
+      state.RefreshDevicesLocked(events);
+      auto raw = state.ReadRawLocked(user);
+      if (raw) {
+        u16 taken = std::exchange(state.presses[user], u16{0});
+        if (state.ui_blocks.load() > 0) {
+          taken = 0;
+        }
+        if (!settings_.guide_button.Get()) {
+          taken = static_cast<u16>(taken & ~rex::hid::kPadGuide);
+        }
+        result = taken;
+      } else {
+        result = std::unexpected(raw.error());
+      }
     }
   }
   state.Fire(events);

@@ -16,12 +16,15 @@
 #include <optional>
 #include <set>
 #include <array>
+#include <memory>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include <rex/setting.h>
 #include <rex/settings_registry.h>
 #include <rex/console_command.h>
+#include <rex/platform/lock_order.h>
 #include <rex/utility.h>
 
 namespace rex {
@@ -29,6 +32,14 @@ namespace rex {
 inline constexpr size_t kSettingLayerCount = 7;
 
 void RegisterAliases(SettingsRegistry& settings);
+
+/**
+ * Refuses a write from inside a log sink. A debug build reports it as a lock order violation.
+ *
+ * @param name The setting the write is for.
+ * @return Ok, or an error naming it.
+ */
+[[nodiscard]] Result<void> CheckSettingWrite(std::string_view name);
 
 extern std::atomic<bool> g_startup_frozen;
 extern std::atomic<bool> g_launch_frozen;
@@ -46,8 +57,20 @@ struct SettingBase::State {
   std::string help;
   SettingType type = SettingType::kBool;
   SettingConstraints constraints;
-  SettingLayer layer = SettingLayer::kDefault;
-  bool restart_pending = false;
+  std::atomic<SettingLayer> layer{SettingLayer::kDefault};
+  std::atomic<bool> restart_pending{false};
+  std::atomic<u64> generation{1};
+  using WatchList = std::vector<std::shared_ptr<detail::SettingWatch>>;
+  /**
+   * Unranked. It takes no other lock and calls no other code, and it is never held while a value
+   * lock is taken. The value lock of the setting takes it when OnChange links a watch.
+   */
+  std::mutex watches_mutex;
+  /**
+   * The watches in registration order, or null when there are none. Copied on write, so a write
+   * reads the list by taking the pointer and never copies it while it is unchanged.
+   */
+  std::shared_ptr<const WatchList> watches;
 };
 
 struct ConsoleCommand::State {
@@ -58,7 +81,10 @@ struct ConsoleCommand::State {
 };
 
 struct SettingsRegistry::State {
-  mutable std::recursive_mutex mutex;
+  /** Adds a notice under the map lock, which the caller does not hold. */
+  void AddNotice(std::string text);
+
+  mutable platform::RankedMutex mutex{platform::lock_rank::kSettingsRegistry};
   std::map<std::string, SettingBase*, std::less<>> settings;
   std::map<std::string, ConsoleCommand*, std::less<>> commands;
   std::map<std::string, std::string, std::less<>> aliases;

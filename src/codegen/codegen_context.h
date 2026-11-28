@@ -13,6 +13,7 @@
 #include <filesystem>
 #include <memory>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include "analysis_error_log.h"
@@ -143,6 +144,8 @@ class CodegenContext : public rex::MoveOnly {
 
     std::vector<CodeRegion> code_regions;     /**< Null delimited code regions */
     std::unordered_map<u32, u32> pdata_sizes; /**< Maps address to size */
+    /** Registered functions that lie in no code region, which discovery skips. */
+    std::unordered_set<u32> outside_code;
   } scan;
 
   const BinaryView& GetBinary() const { return binary_; }

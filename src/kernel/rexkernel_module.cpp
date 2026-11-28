@@ -27,7 +27,7 @@
 #include "kernel/xam/forward.h"
 #include "kernel/xbdm/forward.h"
 
-REXLOG_TABLE(kRuntimeLog, kernel, cpu, title)
+REXLOG_TABLE(kRuntimeLog, kernel, cpu)
 
 namespace rex::kernel {
 
@@ -58,13 +58,14 @@ void KernelModule::RegisterCounters() {
     const char* name;
     platform::CounterType type;
   };
-  constexpr std::array<Entry, 6> kCounters = {{
+  constexpr std::array<Entry, 7> kCounters = {{
       {"xma_frames_decoded", platform::CounterType::kAccumulator},
       {"functions_dispatched", platform::CounterType::kAccumulator},
       {"interrupt_dispatches", platform::CounterType::kAccumulator},
       {"active_threads", platform::CounterType::kGauge},
       {"apc_queue_depth", platform::CounterType::kAccumulator},
       {"critical_region_contentions", platform::CounterType::kGauge},
+      {"critical_section_blocks", platform::CounterType::kAccumulator},
   }};
   for (const Entry& entry : kCounters) {
     if (auto counter = platform::RegisterCounter(entry.name, entry.type); !counter) {

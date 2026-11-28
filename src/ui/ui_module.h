@@ -29,7 +29,7 @@ namespace rex::ui {
 /** Serves the UI system and its control interface, and selects the drivers at Init. */
 class UIModule final : public IModule {
  public:
-  REX_MODULE_SERVES(::rex::ui::IUISystem, ::rex::ui::IUIControl)
+  REX_MODULE_SERVES(::rex::ui::IUISystem, ::rex::ui::IUIControl, ::rex::IUIThread)
 
   std::string_view GetName() const override { return "rexui"; }
   std::span<const InterfaceType> GetRequiredInterfaces() const override;

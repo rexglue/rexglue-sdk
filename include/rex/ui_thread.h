@@ -27,7 +27,8 @@ REX_DECLARE_INTERFACE(IUIThread, 1)
    * Runs a function on the UI thread and waits for it. Runs it at once when called on the UI
    * thread. Any thread.
    *
-   * @return False when the UI system stopped and the function did not run.
+   * @return False when the function did not run, because the UI system stopped or the calling
+   * thread runs a setting change function.
    */
   [[nodiscard]] virtual bool RunSynchronous(MoveOnlyFunction<void()> fn) = 0;
 };

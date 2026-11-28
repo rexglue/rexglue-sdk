@@ -199,6 +199,7 @@ class GraphicsApp final : public rex::test::ObjectApp<rex::codegen::ToolApp> {
   rex::AppSysRequirements GetRequirements() const override {
     rex::AppSysRequirements requirements;
     requirements.graphics_family = family_;
+    requirements.ui = with_ui_;
     return requirements;
   }
 
@@ -416,9 +417,7 @@ class GPUApp final : public rex::test::ObjectApp<rex::app::App> {
 
   rex::Result<void> OnConfigure(rex::SettingsRegistry&) override {
     REX_TRY_VOID(root.SetText(rex::SettingLayer::kTitle, folder_.path.string()));
-    REX_TRY_VOID(GetUI().GetSettings().driver.SetText(rex::SettingLayer::kTitle, "none"));
     REX_TRY_VOID(GetInput().GetSettings().drivers.SetText(rex::SettingLayer::kTitle, "none"));
-    REX_TRY_VOID(GetAudio().GetSettings().driver.SetText(rex::SettingLayer::kTitle, "none"));
     REX_TRY_VOID(GetGraphics().GetSettings().driver.SetText(rex::SettingLayer::kTitle, driver_));
     return rex::Ok();
   }

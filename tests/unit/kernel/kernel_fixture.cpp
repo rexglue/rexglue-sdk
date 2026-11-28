@@ -28,6 +28,7 @@
 #include <rex/kernel/thread_state.h>
 #include <rex/kernel/heap.h>
 
+#include "../benchmark_pool.h"
 #include "../test_memory.h"
 #include "temp_folder.h"
 #include "codegen/tool_runtime.h"
@@ -121,6 +122,13 @@ class FixtureApp final : public rex::test::ObjectApp<codegen::ToolApp> {
   ui::IUIControl* GetUIControl() { return GetControlFactory().Get<ui::IUIControl>(); }
 
  protected:
+  AppSysRequirements GetRequirements() const override {
+    AppSysRequirements needs;
+    needs.audio = !audio_driver_.empty();
+    needs.ui = !ui_driver_.empty();
+    return needs;
+  }
+
   void OnRegisterModules(std::vector<IModule*>& providers) override {
     ObjectApp::OnRegisterModules(providers);
     providers.insert(providers.end(), providers_.begin(), providers_.end());
@@ -150,6 +158,26 @@ u32 Caller::Call(kernel::ExportModule module, std::string_view name,
     AddFailure("no export named " + std::string(name));
     return 0xFFFFFFFF;
   }
+  return Run(entry->fn, args);
+}
+
+Caller::ResolvedExport Caller::Resolve(std::string_view name) {
+  const auto* entry = FindExport(kernel::ExportModule::kXboxkrnl, name);
+  if (!entry || !entry->fn) {
+    AddFailure("no export named " + std::string(name));
+    return ResolvedExport(nullptr);
+  }
+  return ResolvedExport(entry->fn);
+}
+
+Caller::ResolvedExport Caller::Resolve(::PPCFunc* fn) {
+  return ResolvedExport(fn);
+}
+
+u32 Caller::Run(::PPCFunc* fn, std::initializer_list<u64> args) {
+  if (!fn) {
+    return 0xFFFFFFFF;
+  }
   PPCRegister* registers[] = {&ctx_.r3, &ctx_.r4, &ctx_.r5, &ctx_.r6,
                               &ctx_.r7, &ctx_.r8, &ctx_.r9, &ctx_.r10};
   const u64 saved_r1 = ctx_.r1.u64;
@@ -165,7 +193,7 @@ u32 Caller::Call(kernel::ExportModule module, std::string_view name,
     }
     ++index;
   }
-  entry->fn(ctx_, base_);
+  fn(ctx_, base_);
   ctx_.r1.u64 = saved_r1;
   return ctx_.r3.u32;
 }
@@ -321,7 +349,8 @@ KernelFixture::~KernelFixture() {
   }
 }
 
-void KernelFixture::RunOnGuestThread(const std::function<void(Caller&)>& body) {
+void KernelFixture::RunOnGuestThread(const std::function<void(Caller&)>& body,
+                                     std::chrono::seconds timeout) {
   auto done = std::make_shared<std::promise<void>>();
   auto finished = done->get_future();
 
@@ -336,14 +365,17 @@ void KernelFixture::RunOnGuestThread(const std::function<void(Caller&)>& body) {
     done->set_value();
   });
 
-  const bool finished_in_time =
-      finished.wait_for(std::chrono::seconds(20)) == std::future_status::ready;
+  const bool finished_in_time = finished.wait_for(timeout) == std::future_status::ready;
   CHECK(finished_in_time);
   CheckNoFailures();
   if (finished_in_time) {
     main_caller.Kernel("NtClose", {handle});
   }
   kernel::ThreadState::Bind(previous);
+}
+
+void KernelFixture::RunBenchmarkOnGuestThread(const std::function<void(Caller&)>& body) {
+  RunOnGuestThread(body, kBenchmarkBodyTimeout);
 }
 
 void KernelFixture::RunUntilGuestThreadEnds(const std::function<void(Caller&)>& body) {

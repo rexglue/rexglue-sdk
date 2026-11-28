@@ -109,6 +109,9 @@ PipelineCache::PipelineCache(D3D12CommandProcessor& command_processor,
 }
 
 void PipelineCache::AnalyzeShaderUCode(Shader& shader) {
+  if (shader.IsUcodeAnalyzed()) {
+    return;
+  }
   shader.AnalyzeUcode(ucode_disasm_buffer_,
                       command_processor_.GetXenosSettings().dump_shaders.Get());
 }
@@ -689,7 +692,8 @@ void PipelineCache::EndSubmission() {
     storage_.shader_file_flush_needed = false;
     storage_.pipeline_file_flush_needed = false;
   }
-  if (!creation_threads_.empty()) {
+  if (!creation_threads_.empty() &&
+      !command_processor_.GetXenosSettings().async_shader_compilation.Get()) {
     CreateQueuedPipelinesOnProcessorThread();
     bool await_creation_completion_event;
     {
@@ -2757,7 +2761,7 @@ void PipelineCache::StorageWriteThread() {
         storage_.write_flush_pipelines = false;
         flush_pipelines = true;
       }
-      if (!shader && !write_pipeline) {
+      if (!shader && !write_pipeline && !flush_shaders && !flush_pipelines) {
         storage_.write_request_cond.wait(lock);
         continue;
       }
@@ -2801,8 +2805,9 @@ bool PipelineCache::PrepareRuntimeDescriptionForQueuedCreation(
     if (!translation->IsTranslated()) {
       std::lock_guard<std::mutex> lock(translation_request_lock_);
       if (!translation->IsTranslated()) {
+        string::StringBuffer ucode_disasm_buffer;
         translation->GetShader().AnalyzeUcode(
-            ucode_disasm_buffer_, command_processor_.GetXenosSettings().dump_shaders.Get());
+            ucode_disasm_buffer, command_processor_.GetXenosSettings().dump_shaders.Get());
         if (!TranslateAnalyzedShader(*shader_translator_, *translation, dxbc_converter_, dxc_utils_,
                                      dxc_compiler_)) {
           REXGPU_FAIL(false, "Failed to translate queued {} shader", shader_type);

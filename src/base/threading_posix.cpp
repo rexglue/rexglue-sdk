@@ -62,6 +62,7 @@ static_assert(REX_PLATFORM_LINUX || REX_PLATFORM_MAC, "This file is POSIX-only")
 #include <rex/chrono.h>
 #include <rex/math.h>
 #include <rex/platform/timer.h>
+#include <rex/utility.h>
 
 #include "base/signal_context.h"
 
@@ -71,7 +72,6 @@ static_assert(REX_PLATFORM_LINUX || REX_PLATFORM_MAC, "This file is POSIX-only")
 #include <dlfcn.h>
 
 #include <rex/main_android.h>
-#include <rex/utility.h>
 #endif
 
 #if REX_PLATFORM_MAC
@@ -418,9 +418,19 @@ class WaitRegistration : public NonCopyable {
   /** Removes the waiter from every object. Safe to call again. */
   void Release();
 
+  /**
+   * True when a manual reset event was set after the waiter registered on it. Callers hold the
+   * mutex of the object.
+   *
+   * @param condition An object the waiter is registered on.
+   * @return True when the object was set since registration.
+   */
+  bool WasSet(const PosixConditionBase* condition) const;
+
  private:
   Waiter& waiter_;
   std::vector<PosixConditionBase*> conditions_;
+  std::vector<u64> set_counts_;
 };
 
 class PosixConditionBase {
@@ -444,11 +454,12 @@ class PosixConditionBase {
 
   WaitResult Wait(std::chrono::milliseconds timeout) {
     bool executed;
-    auto predicate = [this] { return this->GetSignaled(); };
     if (!Lock()) {
       return WaitResult::kFailed;
     }
     std::unique_lock<std::mutex> lock(mutex_, std::adopt_lock);
+    const u64 seen = set_count_;
+    auto predicate = [this, seen] { return CanAcquire() || set_count_ != seen; };
     if (predicate()) {
       executed = true;
     } else {
@@ -493,7 +504,7 @@ class PosixConditionBase {
         DispatchCurrentThreadUserCallback();
         return std::make_pair(WaitResult::kUserCallback, size_t{0});
       }
-      if (auto result = TryComplete(handles, order, wait_all)) {
+      if (auto result = TryComplete(handles, order, registration, wait_all)) {
         return *result;
       }
       if (DeadlinePassed(deadline)) {
@@ -507,11 +518,32 @@ class PosixConditionBase {
    * Adds a waiter that every state change of this object wakes.
    *
    * @param waiter The waiter, which must stay alive until Unregister.
+   * @return The set count of the object at registration.
    */
-  void Register(Waiter& waiter) {
+  u64 Register(Waiter& waiter) {
     std::lock_guard<std::mutex> lock(mutex_);
     waiters_.push_back(&waiter);
+    return set_count_;
   }
+
+  /** Reserves a signal of this object for the calling thread until RemoveTicket. */
+  void AddTicket() {
+    std::lock_guard<std::mutex> lock(mutex_);
+    tickets_.push_back(pthread_self());
+  }
+
+  void RemoveTicket() {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (auto it = std::ranges::find_if(
+            tickets_, [](pthread_t thread) { return pthread_equal(thread, pthread_self()); });
+        it != tickets_.end()) {
+      tickets_.erase(it);
+      NotifyWaiters();
+    }
+  }
+
+  /** Returns the number of times a manual reset event was set. Callers hold mutex_. */
+  u64 GetSetCount() const { return set_count_; }
 
   void Unregister(Waiter& waiter) {
     std::lock_guard<std::mutex> lock(mutex_);
@@ -529,6 +561,33 @@ class PosixConditionBase {
   inline virtual void PostExecution() = 0;
   virtual bool TakeAbandoned() { return false; }
 
+  /**
+   * True when a wait by the thread would succeed. Callers hold mutex_.
+   *
+   * @param thread The waiting thread.
+   * @return True when the object is signaled for the thread.
+   */
+  virtual bool IsSignaledFor([[maybe_unused]] pthread_t thread) const { return GetSignaled(); }
+
+  /**
+   * True when the calling thread may take the object. A thread without a ticket leaves a signal to
+   * the ticket holders. Callers hold mutex_.
+   *
+   * @return True when the object is signaled and not reserved for another thread.
+   */
+  bool CanAcquire() const {
+    if (!GetSignaled()) {
+      return false;
+    }
+    const pthread_t self = pthread_self();
+    if (std::ranges::any_of(tickets_,
+                            [self](pthread_t thread) { return pthread_equal(thread, self); })) {
+      return true;
+    }
+    return std::ranges::none_of(tickets_,
+                                [this](pthread_t thread) { return IsSignaledFor(thread); });
+  }
+
   /** Wakes everything blocked on this object. Callers hold mutex_. */
   void NotifyWaiters() {
     cond_.notify_all();
@@ -539,7 +598,9 @@ class PosixConditionBase {
 
   std::condition_variable cond_;
   std::mutex mutex_;
-  std::vector<Waiter*> waiters_; /**< Protected by mutex_. */
+  std::vector<Waiter*> waiters_;   /**< Protected by mutex_. */
+  std::vector<pthread_t> tickets_; /**< Protected by mutex_. */
+  u64 set_count_ = 0;              /**< Protected by mutex_. */
 
  private:
   bool Lock() {
@@ -561,7 +622,7 @@ class PosixConditionBase {
 
   static std::optional<std::pair<WaitResult, size_t>> TryComplete(
       std::span<PosixConditionBase* const> handles, std::span<PosixConditionBase* const> order,
-      bool wait_all) {
+      const WaitRegistration& registration, bool wait_all) {
     size_t locked = 0;
     const auto unlock = [&] {
       while (locked > 0) {
@@ -578,11 +639,11 @@ class PosixConditionBase {
     size_t first_signaled = std::numeric_limits<size_t>::max();
     bool condition_met = false;
     if (wait_all) {
-      condition_met = std::ranges::all_of(handles, &PosixConditionBase::GetSignaled);
+      condition_met = std::ranges::all_of(handles, &PosixConditionBase::CanAcquire);
       first_signaled = 0;
     } else {
       for (size_t i = 0; i < handles.size(); ++i) {
-        if (handles[i]->GetSignaled()) {
+        if (handles[i]->CanAcquire() || registration.WasSet(handles[i])) {
           first_signaled = i;
           condition_met = true;
           break;
@@ -636,6 +697,9 @@ class PosixCondition<Event> : public PosixConditionBase {
   bool Signal() override {
     auto lock = std::unique_lock<std::mutex>(mutex_);
     Raise();
+    if (manual_reset_) {
+      ++set_count_;
+    }
     NotifyWaiters();
     return true;
   }
@@ -813,7 +877,10 @@ class PosixCondition<Mutant> : public PosixConditionBase {
     return registry;
   }
 
-  bool GetSignaled() const override { return count_ == 0 || pthread_equal(owner_, pthread_self()); }
+  bool GetSignaled() const override { return IsSignaledFor(pthread_self()); }
+  bool IsSignaledFor(pthread_t thread) const override {
+    return count_ == 0 || pthread_equal(owner_, thread);
+  }
   void PostExecution() override {
     count_++;
     owner_ = pthread_self();
@@ -1598,9 +1665,16 @@ Waiter& CurrentWaiter(bool alertable) {
 
 WaitRegistration::WaitRegistration(Waiter& waiter, std::span<PosixConditionBase* const> conditions)
     : waiter_(waiter), conditions_(conditions.begin(), conditions.end()) {
+  set_counts_.reserve(conditions_.size());
   for (PosixConditionBase* condition : conditions_) {
-    condition->Register(waiter_);
+    set_counts_.push_back(condition->Register(waiter_));
   }
+}
+
+bool WaitRegistration::WasSet(const PosixConditionBase* condition) const {
+  const auto it = std::ranges::find(conditions_, condition);
+  return it != conditions_.end() &&
+         condition->GetSetCount() != set_counts_[static_cast<size_t>(it - conditions_.begin())];
 }
 
 void WaitRegistration::Release() {
@@ -1794,6 +1868,9 @@ WaitResult SignalAndWait(WaitHandle* wait_handle_to_signal, WaitHandle* wait_han
   if (posix_wait_handle_to_signal == nullptr || posix_wait_handle_to_wait_on == nullptr) {
     return WaitResult::kFailed;
   }
+  PosixConditionBase& wait_on = posix_wait_handle_to_wait_on->GetCondition();
+  wait_on.AddTicket();
+  const ScopeGuard ticket([&wait_on] { wait_on.RemoveTicket(); });
   if (!posix_wait_handle_to_signal->GetCondition().Signal()) {
     return WaitResult::kFailed;
   }

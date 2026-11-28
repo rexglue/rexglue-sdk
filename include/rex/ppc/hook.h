@@ -113,9 +113,8 @@
   extern "C" REX_DETAIL_ENTRY_EXPORT REX_FUNC(subroutine) {                          \
     static constinit ::std::atomic_flag rex_stub_seen_;                              \
     const auto rex_stub_value_ = (value);                                            \
-    ::rex::log::detail::WriteStub(                                                   \
-        ::rex::log::cpu, rex_stub_seen_, #subroutine,                                \
-        ::std::format("returning {:#x}", static_cast<::rex::u32>(rex_stub_value_))); \
+    ::rex::log::detail::WriteStubValue(::rex::log::cpu, rex_stub_seen_, #subroutine, \
+                                       static_cast<::rex::u32>(rex_stub_value_));    \
     ctx.r3.u64 = rex_stub_value_;                                                    \
   }
 

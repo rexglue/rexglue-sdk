@@ -10,16 +10,15 @@
  */
 
 #include <algorithm>
-#include <cctype>
 #include <cstring>
 
-#include <rex/logging/log_category.h>
-#include "kernel/categories.h"
 #include <rex/memory/endian.h>
 #include <rex/ppc/hook.h>
+#include "kernel/title_debug_output.h"
 #include "kernel/xboxkrnl/format.h"
 
 using rex::kernel::xboxkrnl::detail::ArrayArgList;
+using rex::kernel::xboxkrnl::detail::DirectMemory;
 using rex::kernel::xboxkrnl::detail::FormatCore;
 using rex::kernel::xboxkrnl::detail::StackArgList;
 using rex::kernel::xboxkrnl::detail::StringFormatData;
@@ -28,48 +27,16 @@ using rex::kernel::xboxkrnl::detail::WideStringFormatData;
 using rex::memory::GuestPtr;
 
 REX_HOOK_RAW(__imp__DbgPrint) {
-  u32 format_ptr = ctx.r3.u32;
-  if (!format_ptr) {
-    ctx.r3.u64 = 0;
-    return;
+  if (ctx.r3.u32 != 0) {
+    rex::kernel::WritePrintf(ctx, 0);
   }
-  auto format = GuestPtr<const u8*>(base, format_ptr);
-
-  StackArgList args(ctx, base, 1);
-  StringFormatData data(format);
-
-  i32 count = FormatCore(base, data, args, false);
-  if (count > 0) {
-    auto str = data.GetOutput();
-    while (!str.empty() && std::isspace(static_cast<unsigned char>(str.back()))) {
-      str.pop_back();
-    }
-    REXTITLE_DEV("DbgPrint: {}", str);
-  }
-
   ctx.r3.u64 = 0;
 }
 
 REX_HOOK_RAW(__imp__XamDbgPrint) {
-  u32 format_ptr = ctx.r3.u32;
-  if (!format_ptr) {
-    ctx.r3.u64 = 0;
-    return;
+  if (ctx.r3.u32 != 0) {
+    rex::kernel::WritePrintf(ctx, 0);
   }
-  auto format = GuestPtr<const u8*>(base, format_ptr);
-
-  StackArgList args(ctx, base, 1);
-  StringFormatData data(format);
-
-  i32 count = FormatCore(base, data, args, false);
-  if (count > 0) {
-    auto str = data.GetOutput();
-    while (!str.empty() && std::isspace(static_cast<unsigned char>(str.back()))) {
-      str.pop_back();
-    }
-    REXTITLE_DEV("XamDbgPrint: {}", str);
-  }
-
   ctx.r3.u64 = 0;
 }
 
@@ -88,7 +55,8 @@ REX_HOOK_RAW(__imp__sprintf) {
   StackArgList args(ctx, base, 2);
   StringFormatData data(format);
 
-  i32 count = FormatCore(base, data, args, false);
+  DirectMemory memory(base);
+  i32 count = FormatCore(memory, data, args, false);
   if (count <= 0) {
     buffer[0] = '\0';
   } else {
@@ -114,7 +82,8 @@ REX_HOOK_RAW(__imp___snprintf) {
   StackArgList args(ctx, base, 3);
   StringFormatData data(format);
 
-  i32 count = FormatCore(base, data, args, false);
+  DirectMemory memory(base);
+  i32 count = FormatCore(memory, data, args, false);
   if (count < 0) {
     if (buffer_count > 0) {
       buffer[0] = '\0';
@@ -146,7 +115,8 @@ REX_HOOK_RAW(__imp__swprintf) {
   StackArgList args(ctx, base, 2);
   WideStringFormatData data(format);
 
-  i32 count = FormatCore(base, data, args, true);
+  DirectMemory memory(base);
+  i32 count = FormatCore(memory, data, args, true);
   if (count <= 0) {
     buffer[0] = '\0';
   } else {
@@ -173,7 +143,8 @@ REX_HOOK_RAW(__imp___snwprintf) {
   StackArgList args(ctx, base, 3);
   WideStringFormatData data(format);
 
-  i32 count = FormatCore(base, data, args, true);
+  DirectMemory memory(base);
+  i32 count = FormatCore(memory, data, args, true);
   if (count < 0) {
     if (buffer_count > 0) {
       buffer[0] = '\0';
@@ -208,7 +179,8 @@ REX_HOOK_RAW(__imp__vsprintf) {
   ArrayArgList args(base, arg_ptr);
   StringFormatData data(format);
 
-  i32 count = FormatCore(base, data, args, false);
+  DirectMemory memory(base);
+  i32 count = FormatCore(memory, data, args, false);
   if (count <= 0) {
     buffer[0] = '\0';
   } else {
@@ -235,7 +207,8 @@ REX_HOOK_RAW(__imp___vsnprintf) {
   ArrayArgList args(base, arg_ptr);
   StringFormatData data(format);
 
-  i32 count = FormatCore(base, data, args, false);
+  DirectMemory memory(base);
+  i32 count = FormatCore(memory, data, args, false);
   if (count < 0) {
     if (buffer_count > 0) {
       buffer[0] = '\0';
@@ -267,7 +240,8 @@ REX_HOOK_RAW(__imp__vswprintf) {
   ArrayArgList args(base, arg_ptr);
   WideStringFormatData data(format);
 
-  i32 count = FormatCore(base, data, args, true);
+  DirectMemory memory(base);
+  i32 count = FormatCore(memory, data, args, true);
   if (count <= 0) {
     buffer[0] = '\0';
   } else {
@@ -295,7 +269,8 @@ REX_HOOK_RAW(__imp___vsnwprintf) {
   ArrayArgList args(base, arg_ptr);
   WideStringFormatData data(format);
 
-  i32 count = FormatCore(base, data, args, true);
+  DirectMemory memory(base);
+  i32 count = FormatCore(memory, data, args, true);
   if (count < 0) {
     if (buffer_count > 0) {
       buffer[0] = '\0';
@@ -327,7 +302,8 @@ REX_HOOK_RAW(__imp___vscwprintf) {
   ArrayArgList args(base, arg_ptr);
   WideCountFormatData data(format);
 
-  i32 count = FormatCore(base, data, args, true);
+  DirectMemory memory(base);
+  i32 count = FormatCore(memory, data, args, true);
   REX_ASSERT(count < 0 || data.GetCount() == count);
   ctx.r3.u64 = count;
 }

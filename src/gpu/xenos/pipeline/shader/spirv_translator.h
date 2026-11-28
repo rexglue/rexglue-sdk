@@ -815,9 +815,7 @@ class SPIRVShaderTranslator : public ShaderTranslator {
                                  xenos::TextureFilter min_filter, xenos::TextureFilter mip_filter,
                                  xenos::AnisoFilter aniso_filter);
   /**
-   * Samples with texture_parameters set up except for sampler. Optionally interpolates between an
-   * existing value and the new one, and the result may alias the first lerp endpoint but not across
-   * signedness.
+   * Samples with texture_parameters set up except for sampler.
    *
    * @param texture_parameters Sampling parameters, with the sampler left unset.
    * @param image_unsigned Unsigned texture ID.
@@ -827,17 +825,12 @@ class SPIRVShaderTranslator : public ShaderTranslator {
    * @param is_any_signed Bool ID that is true when any component is signed.
    * @param result_unsigned_out Receives the unsigned sample.
    * @param result_signed_out Receives the signed sample.
-   * @param lerp_factor Interpolation factor, or spv::NoResult for no interpolation.
-   * @param lerp_first_unsigned First unsigned interpolation endpoint.
-   * @param lerp_first_signed First signed interpolation endpoint.
    */
   void SampleTexture(spv::Builder::TextureParameters& texture_parameters,
                      spv::ImageOperandsMask image_operands_mask, spv::Id image_unsigned,
                      spv::Id image_signed, spv::Id sampler, spv::Id is_any_unsigned,
                      spv::Id is_any_signed, spv::Id& result_unsigned_out,
-                     spv::Id& result_signed_out, spv::Id lerp_factor = spv::NoResult,
-                     spv::Id lerp_first_unsigned = spv::NoResult,
-                     spv::Id lerp_first_signed = spv::NoResult);
+                     spv::Id& result_signed_out);
   /**
    * Returns the LOD queried with texture_parameters set up except for the sampler. The result is a
    * SPIR-V ID.

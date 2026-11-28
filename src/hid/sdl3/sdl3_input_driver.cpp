@@ -17,6 +17,8 @@
 #include <cctype>
 #include <mutex>
 #include <string>
+#include <tuple>
+#include <utility>
 #include <vector>
 
 #include <SDL3/SDL.h>
@@ -161,13 +163,13 @@ struct SDL3InputDriver::State {
     SDL_Gamepad* sdl = nullptr;
     PadDeviceID id = kInvalidPadDeviceID;
     PadState state;
+    u16 presses = 0;
     i32 xinput_slot = -1;
   };
 
   IDriverContext* context = nullptr;
   std::atomic<u64> revision{1};
   std::atomic<bool> running{false};
-  std::atomic<bool> pump_queued{false};
   std::atomic<size_t> unflushed{0};
 
   std::mutex event_mutex;
@@ -191,7 +193,7 @@ struct SDL3InputDriver::State {
   void OnButtonLocked(const SDL_Event& event);
   Controller* FindByInstance(SDL_JoystickID instance);
   Controller* FindByID(PadDeviceID id);
-  void QueuePump(const std::shared_ptr<State>& self);
+  void Pump() const;
 };
 
 bool SDL3InputDriver::State::EventWatch(void* userdata, SDL_Event* event) {
@@ -369,6 +371,7 @@ void SDL3InputDriver::State::OnButtonLocked(const SDL_Event& event) {
   const u16 bit = kButtonLookup[event.gbutton.button];
   if (event.gbutton.down) {
     controller->state.buttons = static_cast<u16>(controller->state.buttons | bit);
+    controller->presses = static_cast<u16>(controller->presses | bit);
   } else {
     controller->state.buttons = static_cast<u16>(controller->state.buttons & ~bit);
   }
@@ -393,14 +396,11 @@ SDL3InputDriver::State::Controller* SDL3InputDriver::State::FindByID(PadDeviceID
   return nullptr;
 }
 
-void SDL3InputDriver::State::QueuePump(const std::shared_ptr<State>& self) {
-  if (!running || !events_up || pump_queued.exchange(true)) {
+void SDL3InputDriver::State::Pump() const {
+  if (!running || !events_up) {
     return;
   }
-  context->PostToUIThread([self]() {
-    SDL_PumpEvents();
-    self->pump_queued = false;
-  });
+  std::ignore = context->RunOnUIThread([] { SDL_PumpEvents(); });
 }
 
 SDL3InputDriver::SDL3InputDriver() : SettingOwner("hid.sdl") {}
@@ -498,7 +498,7 @@ u64 SDL3InputDriver::GetDeviceRevision() const {
   if (!state_) {
     return 0;
   }
-  state_->QueuePump(state_);
+  state_->Pump();
   return state_->revision.load();
 }
 
@@ -507,7 +507,7 @@ void SDL3InputDriver::EnumerateDevices(std::vector<PadDevice>& out) {
   if (!state_ || !state_->gamepad_up) {
     return;
   }
-  state_->QueuePump(state_);
+  state_->Pump();
   auto guard = state_->DrainAndLock();
   for (const State::Controller& controller : state_->controllers) {
     SDL_Gamepad* sdl = controller.sdl;
@@ -531,7 +531,7 @@ Result<PadState> SDL3InputDriver::GetDeviceState(PadDeviceID id) {
   if (!state_ || !state_->gamepad_up) {
     return std::unexpected(NotConnected());
   }
-  state_->QueuePump(state_);
+  state_->Pump();
   auto guard = state_->DrainAndLock();
   const State::Controller* controller = state_->FindByID(id);
   if (!controller) {
@@ -540,11 +540,23 @@ Result<PadState> SDL3InputDriver::GetDeviceState(PadDeviceID id) {
   return controller->state;
 }
 
+u16 SDL3InputDriver::TakeDevicePresses(PadDeviceID id) {
+  if (!state_ || !state_->gamepad_up) {
+    return 0;
+  }
+  auto guard = state_->DrainAndLock();
+  State::Controller* controller = state_->FindByID(id);
+  if (!controller) {
+    return 0;
+  }
+  return std::exchange(controller->presses, u16{0});
+}
+
 Result<PadCapabilities> SDL3InputDriver::GetDeviceCapabilities(PadDeviceID id) {
   if (!state_ || !state_->gamepad_up) {
     return std::unexpected(NotConnected());
   }
-  state_->QueuePump(state_);
+  state_->Pump();
   auto guard = state_->DrainAndLock();
   const State::Controller* controller = state_->FindByID(id);
   if (!controller) {
@@ -593,7 +605,7 @@ Result<void> SDL3InputDriver::SetDeviceVibration(PadDeviceID id, const PadVibrat
   if (!state_ || !state_->gamepad_up) {
     return std::unexpected(NotConnected());
   }
-  state_->QueuePump(state_);
+  state_->Pump();
   auto guard = state_->DrainAndLock();
   const State::Controller* controller = state_->FindByID(id);
   if (!controller) {

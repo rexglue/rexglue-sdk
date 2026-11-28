@@ -37,12 +37,14 @@ class DetailAccess {
 
 namespace {
 
-thread_local bool t_in_sinks = false;
+thread_local u32 t_sinks_depth = 0;
 thread_local u64 t_sequence = 0;
 
 struct InSinks {
-  InSinks() { t_in_sinks = true; }
-  ~InSinks() { t_in_sinks = false; }
+  InSinks() { ++t_sinks_depth; }
+  ~InSinks() { --t_sinks_depth; }
+  InSinks(const InSinks&) = delete;
+  InSinks& operator=(const InSinks&) = delete;
 };
 
 CapturedMessage Capture(const Message& message) {
@@ -228,6 +230,10 @@ class ConsumerSink final : public spdlog::sinks::base_sink<spdlog::details::null
 
 }  // namespace
 
+bool IsInSinks() {
+  return t_sinks_depth > 0;
+}
+
 class SinkLogger final : public spdlog::logger {
  public:
   explicit SinkLogger(Logger::State& state) : spdlog::logger("rex"), state_(state) {}
@@ -266,16 +272,14 @@ std::string_view LevelName(Level level) {
   return index < kLevelNames.size() ? kLevelNames[index] : kLevelNames.back();
 }
 
-bool LogCategory::IsEnabled(Level level) const {
-  Logger::State& logger = GetLoggerInstance();
-  u16 slot = slot_.load(std::memory_order_acquire);
-  if (slot == kUnresolved) {
-    slot = logger.Resolve(*this);
-  }
-  return level != Level::kOff && level >= logger.GetSlotLevel(slot);
-}
-
 namespace detail {
+
+constinit SlotLevel g_slot_levels[kMaxCategories];
+
+Level ResolveCategoryLevel(const LogCategory& category) {
+  Logger::State& logger = GetLoggerInstance();
+  return logger.GetSlotLevel(logger.Resolve(category));
+}
 
 void Write(const LogCategory& category, Level level, std::string_view text) {
   Logger::State& logger = GetLoggerInstance();
@@ -303,14 +307,34 @@ void WriteFailure(const LogCategory& category, const char* what) noexcept {
   }
 }
 
+namespace {
+
+Level NextStubLevel(std::atomic_flag& seen) noexcept {
+  if (seen.test(std::memory_order_relaxed)) {
+    return Level::kDev;
+  }
+  return seen.test_and_set(std::memory_order_relaxed) ? Level::kDev : Level::kWarn;
+}
+
+}  // namespace
+
 void WriteStub(const LogCategory& category, std::atomic_flag& seen, std::string_view name,
                std::string_view detail) {
-  const Level level = seen.test_and_set(std::memory_order_relaxed) ? Level::kDev : Level::kWarn;
+  const Level level = NextStubLevel(seen);
   if (!category.IsEnabled(level)) {
     return;
   }
   Write(category, level,
         detail.empty() ? std::format("{} stub", name) : std::format("{} stub, {}", name, detail));
+}
+
+void WriteStubValue(const LogCategory& category, std::atomic_flag& seen, std::string_view name,
+                    u32 value) {
+  const Level level = NextStubLevel(seen);
+  if (!category.IsEnabled(level)) {
+    return;
+  }
+  Write(category, level, std::format("{} stub, returning {:#x}", name, value));
 }
 
 }  // namespace detail
@@ -331,7 +355,7 @@ class CategoryEntry final : public SettingOwner {
       : SettingOwner("log.categories"),
         level(this, name, std::string(), description,
               Allowed("", "trace", "dev", "debug", "info", "warn", "error", "critical", "off")) {
-    watch_ = level.OnChange([&state, name = std::string(name)](const std::string& text) {
+    watch_ = level.Bind([&state, name = std::string(name)](const std::string& text) {
       state.ApplyCategoryLevel(name, text);
     });
   }
@@ -350,8 +374,8 @@ Logger::State::State(Logger& logger)
       pattern(logger.pattern.GetDefaultText()),
       start_time(std::chrono::system_clock::now()) {
   slots.reserve(log::kMaxCategories);
-  for (auto& slot_level : levels) {
-    slot_level.store(log::Level::kInfo, std::memory_order_relaxed);
+  for (auto& slot_level : log::detail::g_slot_levels) {
+    slot_level.level.store(log::Level::kInfo, std::memory_order_relaxed);
   }
   engine->flush_on(spdlog::level::warn);
   CreateLocked(log::core.GetName(), log::core.GetDescription());
@@ -384,7 +408,7 @@ u16 Logger::State::CreateLocked(std::string_view name, std::string_view descript
 
 void Logger::State::RecomputeLocked(u16 slot) {
   const log::Level resolved = slots[slot].explicit_level.value_or(default_level);
-  levels[slot].store(resolved, std::memory_order_release);
+  log::detail::g_slot_levels[slot].level.store(resolved, std::memory_order_release);
 }
 
 void Logger::State::RecomputeAllLocked() {
@@ -562,6 +586,7 @@ void Logger::State::Keep(const log::Message& message) {
 }
 
 void Logger::State::Replay(spdlog::sinks::sink& sink, bool notice) {
+  const log::InSinks in_sinks;
   if (notice && discarded > 0) {
     log::CapturedMessage line;
     line.level = log::Level::kWarn;
@@ -594,7 +619,7 @@ void Logger::State::Write(const log::Message& message) const {
 
 bool Logger::State::LockSinks(std::unique_lock<std::mutex>& lock,
                               std::chrono::milliseconds timeout) {
-  if (log::t_in_sinks) {
+  if (log::IsInSinks()) {
     return false;
   }
   const auto deadline = std::chrono::steady_clock::now() + timeout;
@@ -645,8 +670,10 @@ void Logger::State::SetCrashFile(const std::filesystem::path& path) {
 
 void Logger::State::ApplySettled() {
   ApplyDefaultLevel(owner.level.Get());
+  const SinkInputs inputs{owner.flush_level.Get(), owner.pattern.Get(), owner.console.Get(),
+                          owner.debugger.Get(), owner.color.Get()};
   std::string rejection;
-  std::string wanted = owner.pattern.Get();
+  std::string wanted = inputs.pattern;
   if (const std::string reason = log::CheckPattern(wanted); !reason.empty()) {
     rejection = std::format("log.pattern '{}' is not used, {}", wanted, reason);
     wanted = owner.pattern.GetDefaultText();
@@ -654,12 +681,16 @@ void Logger::State::ApplySettled() {
   bool report = false;
   {
     std::lock_guard lock(sinks_mutex);
-    if (auto parsed = log::ParseLevel(owner.flush_level.Get())) {
+    if (applied_sinks == inputs) {
+      return;
+    }
+    applied_sinks = inputs;
+    if (auto parsed = log::ParseLevel(inputs.flush_level)) {
       engine->flush_on(log::ToSpdlog(*parsed));
     }
     pattern = wanted;
-    console = owner.console.Get() ? log::MakeConsole(owner.color.Get(), pattern) : nullptr;
-    debugger = owner.debugger.Get() ? log::MakeDebugger(pattern) : nullptr;
+    console = inputs.console ? log::MakeConsole(inputs.color, pattern) : nullptr;
+    debugger = inputs.debugger ? log::MakeDebugger(pattern) : nullptr;
     keeping = true;
     RebuildSinksLocked();
     report = !rejection.empty() && rejection != rejected_pattern;
@@ -693,6 +724,7 @@ void Logger::State::EndSession() {
     keeping = true;
     file_resolved = false;
     discarded = 0;
+    applied_sinks.reset();
   }
   ApplySettled();
 }
@@ -749,16 +781,10 @@ Result<void> Logger::State::OpenFile(const std::filesystem::path& log_root,
 Logger::~Logger() = default;
 
 Logger::Logger() : SettingOwner("log"), state_(std::make_unique<State>(*this)) {
-  state_->level_watch =
-      level.OnChange([this](const std::string& text) { state_->ApplyDefaultLevel(text); });
-  const auto reapply = [this](auto& setting) {
-    state_->watches.push_back(setting.OnChange([this](const auto&) { state_->ApplySettled(); }));
-  };
-  reapply(flush_level);
-  reapply(console);
-  reapply(debugger);
-  reapply(pattern);
-  reapply(color);
+  state_->settled_watch =
+      rex::Bind([this](const std::string&, const std::string&, const bool&, const bool&,
+                       const std::string&, const bool&) { state_->ApplySettled(); },
+                level, flush_level, console, debugger, pattern, color);
   if (auto registered = REX_SETTINGS().Register(*this); !registered) {
     std::fprintf(stderr, "log: registering the log settings failed, %s\n",
                  registered.error().message.c_str());

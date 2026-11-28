@@ -27,8 +27,7 @@ namespace rex::ui::sdl3 {
 class SDL3UIDriver final : public IUIDriver, public SettingOwner {
  public:
   REX_SETTING(std::string, video_driver, "",
-              "SDL video driver, empty for SDL's default; dummy runs with no display",
-              kStartupOnly);
+              "SDL video driver, empty for SDL's default; dummy runs with no display", kInitOnly);
 
   SDL3UIDriver();
   ~SDL3UIDriver() override;

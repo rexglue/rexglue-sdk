@@ -145,6 +145,10 @@ kernel::ITitleExit& TitleRuntime::GetTitleExit() {
   return *state_;
 }
 
+kernel::ITitleDebugOutput& TitleRuntime::GetDebugOutput() {
+  return *state_;
+}
+
 kernel::INotificationBroadcaster& TitleRuntime::GetNotificationBroadcaster() {
   return state_->GetNotificationBroadcaster();
 }

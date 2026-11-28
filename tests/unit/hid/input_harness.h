@@ -17,6 +17,7 @@
 #include <exception>
 #include <functional>
 #include <map>
+#include <utility>
 #include <string>
 #include <vector>
 
@@ -43,6 +44,7 @@ struct FakeState {
 
   std::vector<rex::hid::PadDevice> devices;
   std::map<u64, rex::hid::PadState> states;
+  std::map<u64, u16> presses;
   u64 revision = 1;
   std::vector<rex::hid::PadVibration> vibrations;
 };
@@ -71,6 +73,9 @@ class FakeDriver final : public rex::hid::IInputDriver {
       return rex::Err<rex::hid::PadState>(rex::ErrorCategory::kNotFound, "gone");
     }
     return found->second;
+  }
+  u16 TakeDevicePresses(rex::hid::PadDeviceID id) override {
+    return std::exchange(g_fake[N].presses[id.value], u16{0});
   }
   rex::Result<rex::hid::PadCapabilities> GetDeviceCapabilities(rex::hid::PadDeviceID) override {
     rex::hid::PadCapabilities caps;
@@ -109,7 +114,8 @@ class FakeProvider final : public rex::IModule, public rex::IDriverModule {
 
 class InputApp final : public rex::test::ObjectApp<rex::app::App> {
  public:
-  explicit InputApp(std::string names) : ObjectApp("input_test"), names_(std::move(names)) {}
+  explicit InputApp(std::string names, bool shared = false)
+      : ObjectApp("input_test"), names_(std::move(names)), shared_(shared) {}
 
   std::function<void(rex::hid::IInputSystem&)> body;
   std::exception_ptr failure;
@@ -133,7 +139,8 @@ class InputApp final : public rex::test::ObjectApp<rex::app::App> {
   rex::Result<void> OnConfigure(rex::SettingsRegistry&) override {
     REX_TRY_VOID(root.SetText(rex::SettingLayer::kTitle, folder_.path.string()));
     REX_TRY_VOID(GetInput().GetSettings().drivers.SetText(rex::SettingLayer::kTitle, names_));
-    REX_TRY_VOID(GetUI().GetSettings().driver.SetText(rex::SettingLayer::kTitle, "none"));
+    REX_TRY_VOID(GetInput().GetSettings().shared_pads.SetText(rex::SettingLayer::kTitle,
+                                                              shared_ ? "true" : "false"));
     return rex::Ok();
   }
 
@@ -151,13 +158,15 @@ class InputApp final : public rex::test::ObjectApp<rex::app::App> {
 
  private:
   std::string names_;
+  bool shared_;
   rex::test::TempFolder folder_{"rex_input_"};
   FakeProvider provider_;
 };
 
-inline void Run(const std::string& names, std::function<void(rex::hid::IInputSystem&)> body) {
+inline void Run(const std::string& names, std::function<void(rex::hid::IInputSystem&)> body,
+                bool shared = false) {
   g_fake = {};
-  InputApp app(names);
+  InputApp app(names, shared);
   app.body = std::move(body);
   const bool started = static_cast<bool>(app.Start());
   app.Finish();

@@ -11,6 +11,7 @@
 
 #pragma once
 
+#include <chrono>
 #include <filesystem>
 #include <functional>
 #include <initializer_list>
@@ -53,6 +54,41 @@ class Caller {
    * @return The value of r3.
    */
   u32 Kernel(std::string_view name, std::initializer_list<u64> args = {});
+
+  /**
+   * A kernel export found once, for a timed loop that must not search the export table, which
+   * Kernel does on every call. It belongs to no thread: each call names the Caller it runs on.
+   */
+  class ResolvedExport {
+   public:
+    /**
+     * Calls the export on a caller's thread as Kernel does.
+     *
+     * @param caller The caller the export runs on.
+     * @param args Arguments placed in r3 to r10.
+     * @return The value of r3.
+     */
+    u32 operator()(Caller& caller, std::initializer_list<u64> args = {}) const {
+      return caller.Run(fn_, args);
+    }
+
+   private:
+    friend class Caller;
+    explicit ResolvedExport(::PPCFunc* fn) : fn_(fn) {}
+
+    ::PPCFunc* fn_;
+  };
+
+  /**
+   * Finds a kernel export by name once. A name that is not exported fails the test, and calling
+   * the result returns 0xFFFFFFFF.
+   */
+  static ResolvedExport Resolve(std::string_view name);
+
+  /**
+   * Wraps a function as an export, so a baseline runs the same call path with no work in it.
+   */
+  static ResolvedExport Resolve(::PPCFunc* fn);
 
   /**
    * Calls an XAM export by name.
@@ -117,6 +153,7 @@ class Caller {
 
  private:
   u32 Call(kernel::ExportModule module, std::string_view name, std::initializer_list<u64> args);
+  u32 Run(::PPCFunc* fn, std::initializer_list<u64> args);
 
   PPCContext& ctx_;
   u8* base_;
@@ -151,8 +188,22 @@ class KernelFixture {
 
   const std::filesystem::path& GetRoot() const;
 
-  /** Runs a body on a guest thread created through the ExCreateThread export and waits for it. */
-  void RunOnGuestThread(const std::function<void(Caller&)>& body);
+  /**
+   * Runs a body on a guest thread created through the ExCreateThread export and waits for it.
+   *
+   * @param body The code to run on the guest thread.
+   * @param timeout How long to wait for the body.
+   */
+  void RunOnGuestThread(const std::function<void(Caller&)>& body,
+                        std::chrono::seconds timeout = std::chrono::seconds(20));
+
+  /**
+   * Runs a benchmark body on a guest thread and waits for it. The body gets kBenchmarkBodyTimeout,
+   * because full sampling runs every benchmark of a case inside one body.
+   *
+   * @param body The benchmark code to run on the guest thread.
+   */
+  void RunBenchmarkOnGuestThread(const std::function<void(Caller&)>& body);
 
   /**
    * Runs a body on a guest thread and waits for the thread to end, including an exit from inside an

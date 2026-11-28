@@ -40,6 +40,7 @@
 #include <rex/filesystem/mount.h>
 #include <rex/filesystem/file_system.h>
 #include <rex/filesystem/xdbf.h>
+#include <rex/kernel/guest_allocator.h>
 #include <rex/kernel/guest_memory.h>
 #include <rex/kernel/title_runtime.h>
 #include <rex/kernel/kernel_settings.h>
@@ -107,7 +108,10 @@ namespace kernel {
  * public TitleRuntime forwards its calls here. The subsystem getters are valid between Load and
  * Unload.
  */
-class TitleState : public ITitleExit, public ITitleDebugOutput, public rex::NonCopyable {
+class TitleState : public ITitleExit,
+                   public ITitleDebugOutput,
+                   public ITitleWorkspace,
+                   public rex::NonCopyable {
  public:
   /**
    * Creates an unloaded state for a title image.
@@ -341,8 +345,16 @@ class TitleState : public ITitleExit, public ITitleDebugOutput, public rex::NonC
   /** Reports a title exit, then terminates the title from the calling thread. */
   void ExitTitle(TitleExitReason reason) override;
 
-  /** Logs debug text the title printed, in the title category. */
-  void WriteTitleDebugString(std::string_view text) override;
+  void SetCategory(const rex::log::LogCategory& category) override;
+  const rex::log::LogCategory& GetCategory() const override;
+  bool IsEnabled() const override;
+  TextEncoding GetEncoding() const override;
+  void Write(std::string_view text, TextEncoding encoding) override;
+  void Flush() override;
+
+  /** Allocates from the current workspace, which a title workspace size header can replace. */
+  [[nodiscard]] Result<u32> Allocate(u32 size, bool zero) override;
+  void Free(u32 address) override;
 
   bool IsTerminatingTitle() const { return terminating_title_.load(std::memory_order_acquire); }
 
@@ -447,6 +459,7 @@ class TitleState : public ITitleExit, public ITitleDebugOutput, public rex::NonC
   std::unique_ptr<kernel::ModuleRegistry> module_registry_;
   std::unique_ptr<kernel::NotificationBroadcaster> notifier_;
   rex::xam::IXAMTitleLifecycle* xam_ = nullptr;
+  std::atomic<const rex::log::LogCategory*> debug_category_{nullptr};
   rex::xam::IXAMTitleServices* xam_managers_ = nullptr;
   std::unique_ptr<TitleContext> title_context_;
   std::unique_ptr<kernel::Dispatcher> dispatcher_;

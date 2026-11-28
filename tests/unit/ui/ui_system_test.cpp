@@ -16,12 +16,14 @@
 #include <memory>
 #include <new>
 #include <stdexcept>
+#include <string>
 #include <thread>
 #include <vector>
 
 #include <imgui.h>
 
 #include <rex/hid/input_system.h>
+#include <rex/platform/lock_order.h>
 #include <rex/setting.h>
 #include <rex/settings_registry.h>
 #include <rex/logging/logger.h>
@@ -297,6 +299,44 @@ REX_TEST_CASE("a lost focus releases keys", "[ui]") {
   rex::test_ui::DeliverFocus(true);
   app.Pump();
   CHECK(app.GetUI().IsFocused());
+  app.Shutdown();
+}
+
+REX_TEST_CASE("the window state is current when listeners see an event", "[ui]") {
+  UIApp app;
+  REQUIRE(app.Start());
+  rex::ui::IUISystem& ui = app.GetUI();
+  NullRenderer renderer;
+  ui.ShowPrompt({.title = "Title", .body = "Body"}, [](const rex::ui::PromptResult&) {});
+  struct StateListener final : rex::ui::IUIEventListener {
+    void OnUIEvent(const rex::ui::UIEvent& event) override {
+      if (event.GetType() == rex::ui::UIEvent::Type::kFocus) {
+        focused_in_event = ui->IsFocused();
+      } else if (event.GetType() == rex::ui::UIEvent::Type::kResize) {
+        ui->DrawOverlays(*renderer);
+        display_width = ui->GetImGuiIO().DisplaySize.x;
+      }
+    }
+    void OnInputEvent(rex::InputEvent&) override {}
+    rex::ui::IUISystem* ui = nullptr;
+    NullRenderer* renderer = nullptr;
+    bool focused_in_event = true;
+    rex::f32 display_width = 0.0f;
+  } listener;
+  listener.ui = &ui;
+  listener.renderer = &renderer;
+  auto guard = ui.AddEventListener(listener);
+
+  rex::test_ui::DeliverFocus(false);
+  app.Pump();
+  CHECK_FALSE(listener.focused_in_event);
+  rex::test_ui::DeliverFocus(true);
+  app.Pump();
+  CHECK(listener.focused_in_event);
+
+  rex::test_ui::DeliverResize(800, 450);
+  app.Pump();
+  CHECK(listener.display_width == 800.0f);
   app.Shutdown();
 }
 
@@ -662,4 +702,53 @@ REX_TEST_CASE("the UI starts without an input system and shows bindings as text"
   CHECK((*found)->GetText() == "Ctrl+K");
   CHECK(app.Pump());
   app.Shutdown();
+}
+
+namespace {
+std::atomic<int> g_change_violations{0};
+void CountChangeViolation(rex::platform::LockRank, rex::platform::LockRank) {
+  ++g_change_violations;
+}
+}  // namespace
+
+REX_TEST_CASE("RunSynchronous inside a setting change function returns without running", "[ui]") {
+  UIApp app;
+  REQUIRE(app.Start());
+  rex::ui::IUISystem& ui = app.GetUI();
+  rex::log::LogCaptureSink sink;
+  auto sink_guard = REX_LOGGER().AddSink(sink);
+  const rex::u64 since = sink.GetLatestSequence();
+  g_change_violations = 0;
+  auto previous = rex::platform::SetLockOrderHandler(&CountChangeViolation);
+  bool armed = false;
+  bool ran = false;
+  bool accepted = true;
+  {
+    auto watch = ui.GetSettings().title.Bind([&](const std::string&) {
+      if (armed) {
+        accepted = ui.RunSynchronous([&] { ran = true; });
+      }
+    });
+    armed = true;
+    REQUIRE(ui.GetSettings().title.Set("refused inside a change call"));
+  }
+  rex::platform::SetLockOrderHandler(previous);
+  sink_guard.Reset();
+  std::vector<rex::log::CapturedMessage> lines;
+  sink.CopySince(since, lines);
+  int errors = 0;
+  for (const auto& line : lines) {
+    errors += line.level == rex::log::Level::kError &&
+              line.text.find("setting change function") != std::string::npos;
+  }
+  CHECK(errors == 1);
+  CHECK_FALSE(accepted);
+  CHECK_FALSE(ran);
+#ifndef REXGLUE_LOCK_RANK_CHECKS
+  CHECK(g_change_violations == 0);
+#else
+  CHECK(g_change_violations == 1);
+#endif
+  CHECK(ui.RunSynchronous([&] { ran = true; }));
+  CHECK(ran);
 }

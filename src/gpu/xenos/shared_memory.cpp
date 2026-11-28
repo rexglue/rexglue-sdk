@@ -256,6 +256,30 @@ void SharedMemory::RangeWrittenByGPU(u32 start, u32 length) {
   MarkRangeValid(start, length, true);
 }
 
+bool SharedMemory::IsRangeValid(const ScopeGuard&, u32 start, u32 length) const {
+  if (length == 0 || start >= kBufferSize) {
+    return true;
+  }
+  length = std::min(length, kBufferSize - start);
+  u32 page_first = start >> page_size_log2_;
+  u32 page_last = (start + length - 1) >> page_size_log2_;
+  u32 block_first = page_first >> 6;
+  u32 block_last = page_last >> 6;
+  for (u32 i = block_first; i <= block_last; ++i) {
+    u64 range_bits = UINT64_MAX;
+    if (i == block_first) {
+      range_bits &= ~((static_cast<u64>(1) << (page_first & 63)) - 1);
+    }
+    if (i == block_last && (page_last & 63) != 63) {
+      range_bits &= (static_cast<u64>(1) << ((page_last & 63) + 1)) - 1;
+    }
+    if ((system_page_flags_valid_[i] & range_bits) != range_bits) {
+      return false;
+    }
+  }
+  return true;
+}
+
 bool SharedMemory::AllocateSparseHostGPUMemoryRange([[maybe_unused]] u32 offset_allocations,
                                                     [[maybe_unused]] u32 length_allocations) {
   REX_ASSERT_ALWAYS(
@@ -372,6 +396,11 @@ bool SharedMemory::RequestRanges(const std::pair<u32, u32>* ranges, size_t count
     }
   }
 
+  return UploadMergedRanges(merged_ranges.data(), merged_ranges.size(), count);
+}
+
+bool SharedMemory::UploadMergedRanges(const std::pair<u32, u32>* merged, size_t merged_count,
+                                      [[maybe_unused]] size_t request_count) {
   upload_ranges_.clear();
   auto append_upload_range = [this](u32 page_start, u32 page_count) {
     if (!page_count) {
@@ -388,7 +417,8 @@ bool SharedMemory::RequestRanges(const std::pair<u32, u32>* ranges, size_t count
   };
   {
     auto lock = AcquireLock();
-    for (const std::pair<u32, u32>& range : merged_ranges) {
+    for (size_t merged_index = 0; merged_index < merged_count; ++merged_index) {
+      const std::pair<u32, u32>& range = merged[merged_index];
       u32 page_first = range.first >> page_size_log2_;
       u32 page_last = (range.first + range.second - 1) >> page_size_log2_;
       u32 block_first = page_first >> 6;
@@ -432,9 +462,8 @@ bool SharedMemory::RequestRanges(const std::pair<u32, u32>* ranges, size_t count
     }
   }
 
-  REX_PROFILE_PLOT("gpu/shared_memory/request_ranges_count", static_cast<u32>(count));
-  REX_PROFILE_PLOT("gpu/shared_memory/request_ranges_merged_count",
-                   static_cast<u32>(merged_ranges.size()));
+  REX_PROFILE_PLOT("gpu/shared_memory/request_ranges_count", static_cast<u32>(request_count));
+  REX_PROFILE_PLOT("gpu/shared_memory/request_ranges_merged_count", static_cast<u32>(merged_count));
   REX_PROFILE_PLOT("gpu/shared_memory/request_ranges_upload_count",
                    static_cast<u32>(upload_ranges_.size()));
 
@@ -446,8 +475,20 @@ bool SharedMemory::RequestRanges(const std::pair<u32, u32>* ranges, size_t count
 }
 
 bool SharedMemory::RequestRange(u32 start, u32 length) {
-  std::pair<u32, u32> range(start, length);
-  return RequestRanges(&range, 1);
+  if (!length) {
+    return true;
+  }
+  if (start > kBufferSize || (kBufferSize - start) < length) {
+    return false;
+  }
+
+  REX_PROFILE_SCOPE("gpu");
+
+  if (!AllocateHostGPUMemory(start, length)) {
+    return false;
+  }
+  const std::pair<u32, u32> range(start, length);
+  return UploadMergedRanges(&range, 1, 1);
 }
 
 PhysicalRange SharedMemory::OnPhysicalWrite(PhysicalRange range, bool exact_range) {

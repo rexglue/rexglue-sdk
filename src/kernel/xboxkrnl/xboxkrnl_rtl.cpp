@@ -11,6 +11,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <chrono>
 #include <cstddef>
 #include <string>
 
@@ -26,9 +27,12 @@
 #include <rex/kernel/object/module_object.h>
 #include <rex/kernel/types/io.h>
 #include <rex/kernel/object/kernel_thread.h>
+#include <rex/platform/perf.h>
 #include <rex/platform/thread.h>
+#include "kernel/thread_wait.h"
 #include "kernel/stub_log.h"
 #include "kernel/title_state.h"
+#include "kernel/kernel_pool.h"
 #include "kernel/kernel.h"
 #include <rex/kernel/types/xex.h>
 
@@ -46,6 +50,8 @@ constexpr u8 kLatin1Division = 0xF7;
 constexpr u8 kCaseBit = 0x20;
 constexpr u8 kUnmappableChar = '?';
 constexpr u32 kMaxStringBytes = 0xFFFF;
+/** The pool tag value that the console Rtl string routines pass to ExAllocatePoolWithTag. */
+constexpr u32 kStringTag = 0x67727453;
 constexpr u32 kDosNewHeaderOffset = 0x3C;
 constexpr u32 kMaxNtHeaderOffset = 0x10000000;
 
@@ -155,7 +161,7 @@ void RtlInitAnsiString_entry(GuestPtrT<X_ANSI_STRING> destination, MappedString 
 
 void RtlFreeAnsiString_entry(GuestPtrT<X_ANSI_STRING> string) {
   if (string->pointer) {
-    kernel::GetCurrentState().GetAddressSpace()->SystemHeapFree(string->pointer);
+    kernel::GetCurrentState().GetAddressSpace()->GetPool().Free(string->pointer);
   }
 
   string->Reset();
@@ -173,7 +179,7 @@ void RtlInitUnicodeString_entry(GuestPtrT<X_UNICODE_STRING> destination, MappedW
 
 void RtlFreeUnicodeString_entry(GuestPtrT<X_UNICODE_STRING> string) {
   if (string->pointer) {
-    kernel::GetCurrentState().GetAddressSpace()->SystemHeapFree(string->pointer);
+    kernel::GetCurrentState().GetAddressSpace()->GetPool().Free(string->pointer);
   }
 
   string->Reset();
@@ -220,7 +226,7 @@ u32 RtlUnicodeStringToAnsiString_entry(GuestPtrT<X_ANSI_STRING> destination_ptr,
   u32 buffer_ptr = 0;
   if (alloc_dest) {
     capacity = count + 1;
-    buffer_ptr = memory->SystemHeapAlloc(capacity);
+    buffer_ptr = memory->GetPool().Allocate(capacity, kStringTag, 0);
     if (!buffer_ptr) {
       return X_STATUS_NO_MEMORY;
     }
@@ -257,7 +263,7 @@ u32 RtlAnsiStringToUnicodeString_entry(GuestPtrT<X_UNICODE_STRING> destination_p
   }
   u32 buffer_ptr = 0;
   if (alloc_dest) {
-    buffer_ptr = memory->SystemHeapAlloc(needed);
+    buffer_ptr = memory->GetPool().Allocate(needed, kStringTag, 0);
     if (!buffer_ptr) {
       return X_STATUS_NO_MEMORY;
     }
@@ -373,7 +379,7 @@ u32 RtlImageXexHeaderField_entry(GuestPtrT<XEXHeader> xex_header, u32 field_dwor
 #pragma pack(push, 1)
 struct X_RTL_CRITICAL_SECTION {
   X_DISPATCH_HEADER header;
-  i32 lock_count;         /**< -1 becomes 0 on first lock. */
+  be_i32 lock_count;      /**< -1 becomes 0 on first lock. */
   be_i32 recursion_count; /**< 0 becomes 1 on first lock. */
   be_u32 owning_thread;   /**< PKTHREAD or 0 when unlocked. */
 };
@@ -385,14 +391,48 @@ static_assert(offsetof(X_RTL_CRITICAL_SECTION, lock_count) %
 
 namespace {
 
-std::atomic_ref<i32> LockCount(X_RTL_CRITICAL_SECTION& cs) {
-  return std::atomic_ref<i32>(*reinterpret_cast<i32*>(
-      reinterpret_cast<u8*>(&cs) + offsetof(X_RTL_CRITICAL_SECTION, lock_count)));
-}
-
 bool TryAcquireLockCount(X_RTL_CRITICAL_SECTION& cs) {
   i32 expected = -1;
-  return LockCount(cs).compare_exchange_strong(expected, 0);
+  return cs.lock_count.CompareExchange(expected, 0, std::memory_order_seq_cst);
+}
+
+/** Adds to lock_count with a compare exchange on the big endian word and returns the new value. */
+i32 AddLockCount(X_RTL_CRITICAL_SECTION& cs, i32 delta) {
+  i32 current = cs.lock_count.Load(std::memory_order_relaxed);
+  while (!cs.lock_count.CompareExchange(current, current + delta, std::memory_order_seq_cst)) {}
+  return current + delta;
+}
+
+/** Takes the permit a leaving owner published in signal_state, and returns whether it did. */
+bool TakePermit(X_RTL_CRITICAL_SECTION& cs) {
+  if (cs.header.signal_state.Load(std::memory_order_relaxed) != 1) {
+    return false;
+  }
+  u32 expected = 1;
+  return cs.header.signal_state.CompareExchange(expected, 0, std::memory_order_seq_cst);
+}
+
+/**
+ * Returns once the calling thread owns the section, after a failed enter counted it as a waiter.
+ * The event of the section only rings a sleeper, so a ring that finds no permit sleeps again.
+ */
+void AcquireContended(GuestPtrT<X_RTL_CRITICAL_SECTION> cs) {
+  const std::chrono::nanoseconds bound = GetWaitSpinBound();
+  while (true) {
+    if (TakePermit(*cs)) {
+      return;
+    }
+    if (bound.count() > 0) {
+      const auto end = std::chrono::steady_clock::now() + bound;
+      do {
+        if (TakePermit(*cs)) {
+          return;
+        }
+      } while (std::chrono::steady_clock::now() < end);
+    }
+    REX_PERF_INC("critical_section_blocks");
+    KeWaitForSingleObject(cs.GetGuestAddress(), 8, 0, 0, nullptr);
+  }
 }
 
 }  // namespace
@@ -440,21 +480,35 @@ void RtlEnterCriticalSection_entry(GuestPtrT<X_RTL_CRITICAL_SECTION> cs) {
   u32 spin_count = cs->header.absolute * 256;
 
   if (cs->owning_thread == cur_thread) {
-    ++LockCount(*cs);
+    AddLockCount(*cs, 1);
     cs->recursion_count++;
     return;
   }
 
-  while (spin_count--) {
+  // After a failed exchange the console reads lock_count, exchanges again at -1, and stops spinning
+  // once it is above 0, which means threads wait.
+  bool spinning = spin_count != 0;
+  while (spinning) {
     if (TryAcquireLockCount(*cs)) {
       cs->owning_thread = cur_thread;
       cs->recursion_count = 1;
       return;
     }
+    while (true) {
+      const i32 count = cs->lock_count.Load(std::memory_order_relaxed);
+      if (count == -1) {
+        spinning = --spin_count != 0;
+        break;
+      }
+      if (count > 0 || --spin_count == 0) {
+        spinning = false;
+        break;
+      }
+    }
   }
 
-  if (++LockCount(*cs) != 0) {
-    KeWaitForSingleObject(cs.GetGuestAddress(), 8, 0, 0, nullptr);
+  if (AddLockCount(*cs, 1) != 0) {
+    AcquireContended(cs);
   }
 
   REX_ASSERT(cs->owning_thread == 0);
@@ -470,7 +524,7 @@ u32 RtlTryEnterCriticalSection_entry(GuestPtrT<X_RTL_CRITICAL_SECTION> cs) {
     cs->recursion_count = 1;
     return 1;
   } else if (cs->owning_thread == thread) {
-    ++LockCount(*cs);
+    AddLockCount(*cs, 1);
     ++cs->recursion_count;
     return 1;
   }
@@ -485,12 +539,13 @@ void RtlLeaveCriticalSection_entry(GuestPtrT<X_RTL_CRITICAL_SECTION> cs) {
   if (--cs->recursion_count != 0) {
     REX_ASSERT(cs->recursion_count >= 0);
 
-    --LockCount(*cs);
+    AddLockCount(*cs, -1);
     return;
   }
 
   cs->owning_thread = 0;
-  if (--LockCount(*cs) != -1) {
+  if (AddLockCount(*cs, -1) != -1) {
+    cs->header.signal_state.Store(1, std::memory_order_seq_cst);
     KeSetEvent(cs.GetGuestAddress(), 1, 0);
   }
 }

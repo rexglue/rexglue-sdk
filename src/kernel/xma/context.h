@@ -170,6 +170,18 @@ class XMAContext {
   static_assert(kDecoderStartPadding < kSamplesPerFrame,
                 "start padding must fit inside 1 decoded frame");
 
+  /**
+   * Reports whether the read offset sits on the loop end. A loop end below the packet header means
+   * the stream has none.
+   *
+   * @param data The context data.
+   * @return True when the context loops and the read offset equals the loop end.
+   */
+  static bool IsAtLoopEnd(const XMA_CONTEXT_DATA& data) {
+    return data.loop_count > 0 && data.loop_end >= kBitsPerPacketHeader &&
+           data.input_buffer_read_offset == data.loop_end;
+  }
+
   explicit XMAContext();
   ~XMAContext();
 

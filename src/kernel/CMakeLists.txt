@@ -90,12 +90,14 @@ set(REXKERNEL_SOURCES
     object/symbolic_link_object.cpp
     object/object.cpp
     test_access.cpp
+    title_debug_output.cpp
     title_state.cpp
     thread_state.cpp
     kernel_thread.cpp
     thread_registry.cpp
     ppc_hooks.cpp
     guest_stack.cpp
+    kernel_pool.cpp
     process.cpp
     dispatcher.cpp
     notification_broadcaster.cpp
@@ -140,7 +142,6 @@ set(REXKERNEL_SOURCES
     xboxkrnl/xboxkrnl_audio.cpp
     xboxkrnl/xboxkrnl_audio_xma.cpp
     shim/heap.cpp
-    shim/debug.cpp
     shim/file.cpp
     shim/math.cpp
     shim/memory.cpp

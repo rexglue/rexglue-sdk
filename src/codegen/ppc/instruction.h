@@ -12,6 +12,7 @@
 
 #include "opcode.h"
 
+#include <bitset>
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -277,12 +278,17 @@ struct Instruction {
   bool IsBranchAlways() const;
 };
 
-/** The general purpose and floating point registers an instruction reads and writes. */
+/** The general purpose, floating point and vector registers an instruction reads and writes. */
 struct RegisterEffects {
-  u32 gpr_use = 0; /**< Bit n is set when the instruction reads rn. */
-  u32 gpr_def = 0; /**< Bit n is set when the instruction writes rn. */
-  u32 fpr_use = 0; /**< Bit n is set when the instruction reads fn. */
-  u32 fpr_def = 0; /**< Bit n is set when the instruction writes fn. */
+  u32 gpr_use = 0;          /**< Bit n is set when the instruction reads rn. */
+  u32 gpr_def = 0;          /**< Bit n is set when the instruction writes rn. */
+  u32 fpr_use = 0;          /**< Bit n is set when the instruction reads fn. */
+  u32 fpr_def = 0;          /**< Bit n is set when the instruction writes fn. */
+  std::bitset<128> vr_use;  /**< Bit n is set when the instruction reads vn. */
+  std::bitset<128> vr_def;  /**< Bit n is set when the instruction writes vn. */
+  bool frame_store = false; /**< A store whose base register is r1. */
+  bool frame_load = false;  /**< A load whose base register is r1. */
+  bool zeroes = false;      /**< A zeroing idiom, such as xor r3,r4,r4. */
 };
 
 /**
@@ -293,8 +299,8 @@ struct RegisterEffects {
 Instruction DecodeInstruction(u32 address, u32 code);
 
 /**
- * Returns the general purpose and floating point registers an instruction reads and writes, empty
- * for an undecodable word.
+ * Returns the general purpose, floating point and vector registers an instruction reads and
+ * writes, empty for an undecodable word. A call writes r3 to r12 and f0 to f13 and reads nothing.
  */
 RegisterEffects GetRegisterEffects(const Instruction& instr);
 

@@ -99,6 +99,10 @@ void AbortSignal(int) {
   if (detail::BeginReport()) {
     detail::ReportMessage("SIGABRT (abort, failed assertion or uncaught exception)");
     detail::EndReport();
+  } else if (detail::IsReadingException()) {
+    // The terminate handler's rethrow found no active exception, and Windows aborts there.
+    detail::ReportMessage("std::terminate with no active exception");
+    detail::EndReport();
   } else {
     detail::WaitForOtherReport();
   }

@@ -1,6 +1,12 @@
 add_library(
-  rexglue-objects OBJECT ui/ui.cpp ui/progress.cpp command/init_command.cpp command/test_spec.cpp
-                         command/project_scan.cpp command/test_recompiler.cpp
+  rexglue-objects OBJECT
+  ui/ui.cpp
+  ui/progress.cpp
+  command/init_command.cpp
+  command/test_spec.cpp
+  command/project_scan.cpp
+  command/test_recompiler.cpp
+  command/package_registry.cpp
 )
 target_include_directories(
   rexglue-objects PRIVATE ${REXGLUE_ROOT}/src ${REXGLUE_ROOT}/thirdparty/disasm

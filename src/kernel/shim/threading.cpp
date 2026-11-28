@@ -13,6 +13,7 @@
 #include <cstring>
 #include <memory>
 #include <tuple>
+#include <utility>
 
 #include <rex/kernel/types/thread.h>
 #include <rex/memory/mapped_ptr.h>
@@ -72,6 +73,8 @@ struct FiberEntryData {
   TitleRuntime* runtime;
 };
 
+thread_local u32 t_deleted_fiber = 0;
+
 static void FiberEntryPoint(void* raw_arg) {
   auto args = std::unique_ptr<FiberEntryData>(static_cast<FiberEntryData*>(raw_arg));
   auto* thread = KernelThread::GetCallingThread();
@@ -90,6 +93,7 @@ static void FiberEntryPoint(void* raw_arg) {
   } catch (const rex::ThreadStop& stop) {
     thread->RequestStop(stop.exit_code);
   }
+  args.reset();
 
   if (thread->GetMainFiber()) {
     REX_PROFILE_FIBER_LEAVE();
@@ -127,6 +131,24 @@ u32 ResetThreadFiber(KernelThread* thread) {
   mem->SystemHeapFree(fiber_addr);
 
   return 1;
+}
+
+/**
+ * Releases a fiber the calling thread is not running on: its guest stack, host fiber,
+ * registry entry and context block.
+ */
+void ReleaseFiber(TitleRuntime& runtime, kernel::GuestAddressSpace* mem, u32 fiber_addr) {
+  auto info = runtime.GetThreadRegistry().FindFiber(fiber_addr);
+  if (info) {
+    if (!info->is_thread_fiber) {
+      FreeGuestStack(*mem, info->guest_stack_bottom);
+    }
+    if (info->host_fiber) {
+      info->host_fiber->Destroy();
+    }
+    runtime.GetThreadRegistry().UnregisterFiber(fiber_addr);
+  }
+  mem->SystemHeapFree(fiber_addr);
 }
 
 }  // namespace
@@ -250,6 +272,12 @@ REX_SHIM_FN(DeleteFiber, void, MappedVoid lpFiber) {
 
   if (static_cast<u32>(kthread->fiber_ptr) == fiber_addr) {
     REXKRNL_DEBUG("DeleteFiber: self delete fiber={:#010x}", fiber_addr);
+    auto self = runtime.GetThreadRegistry().FindFiber(fiber_addr);
+    if (self && self->host_fiber != thread->GetMainFiber()) {
+      t_deleted_fiber = fiber_addr;
+      thread->Exit(1);
+      return;
+    }
     REX_PROFILE_FIBER_LEAVE();
     ResetThreadFiber(thread);
     thread->Exit(1);
@@ -258,17 +286,7 @@ REX_SHIM_FN(DeleteFiber, void, MappedVoid lpFiber) {
 
   REXKRNL_DEBUG("DeleteFiber: fiber={:#010x}", fiber_addr);
 
-  auto info = runtime.GetThreadRegistry().FindFiber(fiber_addr);
-  if (info) {
-    if (!info->is_thread_fiber) {
-      FreeGuestStack(*mem, info->guest_stack_bottom);
-    }
-    if (info->host_fiber) {
-      info->host_fiber->Destroy();
-    }
-    runtime.GetThreadRegistry().UnregisterFiber(fiber_addr);
-  }
-  mem->SystemHeapFree(fiber_addr);
+  ReleaseFiber(runtime, mem, fiber_addr);
 }
 
 REX_SHIM_FN(SwitchToFiber, void, MappedVoid lpFiber) {
@@ -319,6 +337,20 @@ REX_SHIM_FN(SwitchToFiber, void, MappedVoid lpFiber) {
   rex::platform::GetSEHThreadState().top = scope;
 #endif
   ctx->fpscr.SetCSR(ctx->fpscr.csr);
+  if (t_deleted_fiber) {
+    ReleaseFiber(runtime, mem, std::exchange(t_deleted_fiber, 0u));
+    if (current_addr) {
+      auto* current_fiber = mem->TranslateVirtual<X_FIBER_CONTEXT*>(current_addr);
+      kthread->fiber_ptr = current_addr;
+      ctx->RestoreNonVolatiles(current_fiber->register_save_area);
+      ctx->SetCR(current_fiber->cr_save);
+      ctx->lr = current_fiber->lr_save;
+      UpdateGuestStackPointers(kthread, pcr, ctx, static_cast<u32>(current_fiber->sp_save),
+                               static_cast<u32>(current_fiber->stack_alloc_base),
+                               static_cast<u32>(current_fiber->stack_base),
+                               static_cast<u32>(current_fiber->stack_limit));
+    }
+  }
   KernelThread::CheckStop();
 }
 

@@ -104,6 +104,68 @@ REX_TEST_CASE("A write to a watched host page unprotects it by the access of eve
   CHECK(g_watch_hits.load() == 1);
 }
 
+namespace {
+
+rex::memory::PageAccess HostAccess(void* address) {
+  size_t length = rex::memory::GetPageSize();
+  rex::memory::PageAccess access = rex::memory::PageAccess::kNoAccess;
+  REQUIRE(rex::memory::QueryProtect(address, length, access));
+  return access;
+}
+
+}  // namespace
+
+REX_TEST_CASE("Protecting a physical alias page leaves the raw physical view read write",
+              "[kernel][physical]") {
+  auto& memory = rex::test::GetTestMemory();
+  auto* heap = memory.LookupHeapByType(true, 0x1000);
+  rex::u32 address = 0;
+  REQUIRE(heap->Alloc(
+      0x1000, 0x1000, rex::kernel::kMemoryAllocationReserve | rex::kernel::kMemoryAllocationCommit,
+      rex::kernel::kMemoryProtectRead | rex::kernel::kMemoryProtectWrite, false, &address));
+  rex::u8* alias = memory.TranslateVirtual(address);
+  rex::u8* raw = memory.TranslatePhysical(memory.GetPhysicalAddress(address));
+  REQUIRE(HostAccess(raw) == rex::memory::PageAccess::kReadWrite);
+
+  REQUIRE(heap->Protect(address, 0x1000, rex::kernel::kMemoryProtectRead));
+  CHECK(HostAccess(alias) == rex::memory::PageAccess::kReadOnly);
+  CHECK(HostAccess(raw) == rex::memory::PageAccess::kReadWrite);
+  *raw = 0x5A;
+
+  REQUIRE(heap->Protect(address, 0x1000, rex::kernel::kMemoryProtectNoAccess));
+  CHECK(HostAccess(alias) == rex::memory::PageAccess::kNoAccess);
+  CHECK(HostAccess(raw) == rex::memory::PageAccess::kReadWrite);
+  *raw = 0xA5;
+  CHECK(*raw == 0xA5);
+
+  rex::u32 guest_protect = 0;
+  REQUIRE(heap->QueryProtect(address, &guest_protect));
+  CHECK(guest_protect == rex::kernel::kMemoryProtectNoAccess);
+  CHECK(heap->Release(address));
+}
+
+REX_TEST_CASE("A physical alias allocated read only leaves the raw physical view read write",
+              "[kernel][physical]") {
+  auto& memory = rex::test::GetTestMemory();
+  auto* heap = memory.LookupHeapByType(true, 0x1000);
+  for (const rex::u32 protect :
+       {rex::kernel::kMemoryProtectRead, rex::kernel::kMemoryProtectNoAccess}) {
+    rex::u32 address = 0;
+    REQUIRE(
+        heap->Alloc(0x1000, 0x1000,
+                    rex::kernel::kMemoryAllocationReserve | rex::kernel::kMemoryAllocationCommit,
+                    protect, false, &address));
+    rex::u8* alias = memory.TranslateVirtual(address);
+    rex::u8* raw = memory.TranslatePhysical(memory.GetPhysicalAddress(address));
+    CHECK(HostAccess(alias) == (protect == rex::kernel::kMemoryProtectRead
+                                    ? rex::memory::PageAccess::kReadOnly
+                                    : rex::memory::PageAccess::kNoAccess));
+    CHECK(HostAccess(raw) == rex::memory::PageAccess::kReadWrite);
+    *raw = 0x3C;
+    CHECK(heap->Release(address));
+  }
+}
+
 #if REX_PLATFORM_WIN32
 
 namespace {

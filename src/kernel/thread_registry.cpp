@@ -92,8 +92,18 @@ Result<X_HANDLE> ThreadRegistry::Launch(std::unique_ptr<KernelThread> thread) {
   KernelThread* raw = thread.get();
   raw->thread_id_ = ++next_id_;
   raw->registry_ = this;
-  ObjectBlock block = AllocObjectBlock(raw->GetAddressSpace(), sizeof(X_KTHREAD),
-                                       StateOf(runtime_).GetObjectTypeAddress(ObjectType::kThread));
+  const bool system_thread = !raw->IsGuestThread() || (raw->creation_params_.creation_flags & 2);
+  // The console sizes the thread object as the thread block plus the TLS of the title process.
+  const auto* title_process = raw->GetAddressSpace()->TranslateVirtual<const X_KPROCESS*>(
+      StateOf(runtime_).GetTitleProcess());
+  u32 object_size = sizeof(X_KTHREAD) + title_process->tls_slot_size;
+  if (!(raw->creation_params_.creation_flags & 8)) {
+    object_size += title_process->tls_data_size;
+  }
+  ObjectBlock block = AllocObjectBlock(
+      raw->GetAddressSpace(), object_size,
+      StateOf(runtime_).GetObjectTypeAddress(ObjectType::kThread), nullptr,
+      ObjectBlockOptions{.attributes = system_thread ? 0x2000u : 0x1000u, .thread = true});
   if (!block.address) {
     return Err<X_HANDLE>(StatusError(X_STATUS_NO_MEMORY));
   }
@@ -335,6 +345,13 @@ const char* ThreadRegistry::GetOrCreateFiberName(u32 address, const char* thread
   const char* ptr = buf.get();
   fiber_name_pool_.emplace(address, std::move(buf));
   return ptr;
+}
+
+void ThreadRegistry::WaitForHosts(std::chrono::milliseconds interval) {
+  host_fence_->WaitIdle(KernelThread::IsInThread() ? 1 : 0, interval, [interval](u32 running) {
+    REXSYS_WARN("{} host threads still run after {} ms, teardown waits for them", running,
+                interval.count());
+  });
 }
 
 void ThreadRegistry::DestroyFibers() {

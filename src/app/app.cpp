@@ -101,6 +101,8 @@ int ReportEntryFailure(const char* what) noexcept {
 
 class AppInfoModule final : public IModule {
  public:
+  REX_MODULE_SERVES(IAppInfo)
+
   explicit AppInfoModule(IAppInfo& info) : info_(info) {}
 
   std::string_view GetName() const override { return "appinfo"; }
@@ -427,14 +429,18 @@ Result<void> App::Init(const CLIArgList& args) {
       }
     };
     state.DetectHeadless();
-    add_plugins(GetDriverModules(DriverType::kAudio, state.audio->GetSettings().driver.Get(), {},
-                                 &factory));
+    if (state.needs.audio) {
+      add_plugins(GetDriverModules(DriverType::kAudio, state.audio->GetSettings().driver.Get(), {},
+                                   &factory));
+    }
     if (state.input) {
       add_plugins(GetDriverModules(DriverType::kInput, state.input->GetSettings().drivers.Get(), {},
                                    &factory));
     }
-    add_plugins(
-        GetDriverModules(DriverType::kUI, state.ui->GetSettings().driver.Get(), {}, &factory));
+    if (state.needs.ui) {
+      add_plugins(
+          GetDriverModules(DriverType::kUI, state.ui->GetSettings().driver.Get(), {}, &factory));
+    }
     add_plugins(GetDriverModules(DriverType::kGraphics, state.graphics->GetDriverName(),
                                  state.needs.graphics_family, &factory));
     return plugins;
@@ -458,7 +464,7 @@ Result<void> App::Init(const CLIArgList& args) {
   State::DrainNotices(settings_control);
   detail::SetShutdownWake([ui = state.ui_control] { ui->EndFrameLoop(); });
 
-  settings_control.Freeze(SettingLife::kStartupOnly);
+  settings_control.Freeze(SettingMode::kInitOnly);
   state.phase = AppPhase::kRunning;
   if (auto initialized = OnInit(); !initialized) {
     return Fail("OnInit", initialized.error());

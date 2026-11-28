@@ -241,28 +241,34 @@ Result<X_HANDLE> ObjectTable::AddXAMObject(std::unique_ptr<IXAMObject> body,
              options);
 }
 
-Result<X_HANDLE> ObjectTable::AddFile(std::unique_ptr<filesystem::IFile> file, bool synchronous) {
+Result<X_HANDLE> ObjectTable::AddFile(std::unique_ptr<filesystem::IFile> file, bool synchronous,
+                                      bool unbuffered) {
   ObjectBlock block =
       AllocateObjectBlock(kFileObjectSize, ObjectType::kFile, ObjectBlockHeap::kSystem);
   if (!block.address) {
     return Err<X_HANDLE>(StatusError(X_STATUS_NO_MEMORY));
   }
   *memory_->TranslateVirtual<be_u16*>(block.address) = kFileObjectTypeId;
-  std::unique_ptr<KernelObject> object = MakeObject<FileObject>(std::move(file), synchronous);
+  std::unique_ptr<KernelObject> object =
+      MakeObject<FileObject>(std::move(file), synchronous, unbuffered);
   std::get<FileObject>(object->data).owner = owner_;
   return Add(std::move(object), AddOptions{{}, block});
 }
 
 Result<X_HANDLE> ObjectTable::AddWithBlock(std::unique_ptr<KernelObject> object, u32 attributes_ptr,
                                            u32 block_size) {
+  const std::string name = NameFromAttributes(memory_, attributes_ptr);
   ObjectBlock block;
   if (block_size) {
-    block = AllocObjectBlock(memory_, block_size, GetTypeAddress(object->GetType()));
+    const size_t separator = name.rfind('\\');
+    const u32 name_length = static_cast<u32>(
+        separator == std::string::npos ? name.size() : name.size() - separator - 1);
+    block = AllocObjectBlock(memory_, block_size, GetTypeAddress(object->GetType()), nullptr,
+                             ObjectBlockOptions{.name_length = name_length});
     if (!block.address) {
       return Err<X_HANDLE>(StatusError(X_STATUS_NO_MEMORY));
     }
   }
-  const std::string name = NameFromAttributes(memory_, attributes_ptr);
   Result<X_HANDLE> handle = Add(std::move(object), AddOptions{name, block});
   if (!handle && block.address) {
     FreeObjectBlock(memory_, block.address);
@@ -447,7 +453,7 @@ void ObjectTable::ForgetAddress(u32 address) {
       return;
     }
     if (raw->owns_guest_block) {
-      raw->reinit_pending.store(true);
+      raw->reinit_requests.fetch_add(1, std::memory_order_release);
       return;
     }
     if (!raw->header_hold) {
@@ -466,9 +472,23 @@ ObjectPin ObjectTable::ResolveObject(u32 address, i32 as_type) {
   if (address == 0) {
     return {};
   }
-  std::lock_guard lock(identity_mutex_);
   void* native_ptr = memory_->TranslateVirtual(address);
   auto* header = reinterpret_cast<X_DISPATCH_HEADER*>(native_ptr);
+  {
+    std::shared_lock table_lock(mutex_);
+    if (auto block = block_objects_.find(address); block != block_objects_.end()) {
+      KernelObject* object = block->second;
+      const bool current = object->owns_guest_block
+                               ? object->reinit_requests.load(std::memory_order_acquire) ==
+                                     object->reinit_done.load(std::memory_order_acquire)
+                               : TypeMatchesHeader(object->GetType(), header->type);
+      if (current) {
+        object->pins.Pin();
+        return ObjectPin(object, 0);
+      }
+    }
+  }
+  std::lock_guard lock(identity_mutex_);
   if (as_type == -1) {
     as_type = header->type;
   }
@@ -487,8 +507,14 @@ ObjectPin ObjectTable::ResolveObject(u32 address, i32 as_type) {
     }
   }
   if (hit) {
-    if (hit->owns_guest_block && hit->reinit_pending.exchange(false)) {
-      RebuildHostState(*hit, address, as_type, header, native_ptr);
+    if (hit->owns_guest_block) {
+      // reinit_done is stored after the rebuild, so a lookup that skips the identity lock cannot
+      // use the object while its host state is replaced.
+      const u32 requested = hit->reinit_requests.load(std::memory_order_acquire);
+      if (requested != hit->reinit_done.load(std::memory_order_acquire)) {
+        RebuildHostState(*hit, address, as_type, header, native_ptr);
+        hit->reinit_done.store(requested, std::memory_order_release);
+      }
     }
     return ObjectPin(hit, 0);
   }

@@ -11,12 +11,93 @@
 #include "rex_test.h"
 
 #include <chrono>
+#include <string_view>
 #include <thread>
+#include <tuple>
 
 #include "gpu/xenos/host/present_policy.h"
 
 using namespace rex::gpu;
 using namespace std::chrono_literals;
+
+namespace {
+
+struct ParsedAspect {
+  bool parsed;
+  u32 width;
+  u32 height;
+};
+
+ParsedAspect ParseAspect(std::string_view aspect) {
+  ParsedAspect result{false, 2560, 1080};
+  result.parsed = TryParsePresentAspect(aspect, result.width, result.height);
+  return result;
+}
+
+}  // namespace
+
+REX_TEST_CASE("A present aspect gives its ratio as the display size", "[gpu][present]") {
+  for (const auto& [text, width, height] :
+       {std::tuple{"16:9", 16u, 9u}, std::tuple{"4:3", 4u, 3u}, std::tuple{"1280:720", 1280u, 720u},
+        std::tuple{"016:09", 16u, 9u}}) {
+    INFO(text);
+    const ParsedAspect aspect = ParseAspect(text);
+    CHECK(aspect.parsed);
+    CHECK(aspect.width == width);
+    CHECK(aspect.height == height);
+  }
+}
+
+REX_TEST_CASE("An empty or invalid present aspect keeps the display size", "[gpu][present]") {
+  for (const char* text : {"", "16", "16x9", "16:", ":9", "0:9", "16:0", "16:9x", "16:9:1", "-16:9",
+                           "+16:9", " 16:9", "16:9 ", "16: 9", "99999999999:1", "1:99999999999"}) {
+    INFO(text);
+    const ParsedAspect aspect = ParseAspect(text);
+    CHECK_FALSE(aspect.parsed);
+    CHECK(aspect.width == 2560);
+    CHECK(aspect.height == 1080);
+  }
+}
+
+REX_TEST_CASE("A present aspect stays within the video mode sizes and 16:1 to 1:16",
+              "[gpu][present]") {
+  CHECK(ParseAspect("4095:4095").parsed);
+  CHECK_FALSE(ParseAspect("4096:4096").parsed);
+  CHECK_FALSE(ParseAspect("1:4096").parsed);
+  CHECK(ParseAspect("16:1").parsed);
+  CHECK(ParseAspect("1:16").parsed);
+  CHECK_FALSE(ParseAspect("17:1").parsed);
+  CHECK_FALSE(ParseAspect("1:17").parsed);
+  CHECK(ParseAspect("4080:255").parsed);
+  CHECK(ParseAspect("4095:256").parsed);
+  CHECK_FALSE(ParseAspect("4095:255").parsed);
+  CHECK_FALSE(ParseAspect("1073741824:1080").parsed);
+}
+
+REX_TEST_CASE("A 4:3 present aspect pillarboxes a 16:9 output and none leaves it unchanged",
+              "[gpu][present]") {
+  u32 aspect_x = 16;
+  u32 aspect_y = 9;
+  const PresentRect unchanged =
+      ComputePresentRect(1920, 1080, aspect_x, aspect_y, 100, 100, false, true);
+  CHECK(unchanged.x == 0);
+  CHECK(unchanged.y == 0);
+  CHECK(unchanged.width == 1920);
+  CHECK(unchanged.height == 1080);
+
+  REQUIRE(TryParsePresentAspect("4:3", aspect_x, aspect_y));
+  const PresentRect pillarbox =
+      ComputePresentRect(1920, 1080, aspect_x, aspect_y, 100, 100, false, true);
+  CHECK(pillarbox.x == 240);
+  CHECK(pillarbox.y == 0);
+  CHECK(pillarbox.width == 1440);
+  CHECK(pillarbox.height == 1080);
+
+  const PresentRect filled =
+      ComputePresentRect(1920, 1080, aspect_x, aspect_y, 100, 100, false, false);
+  CHECK(filled.x == 0);
+  CHECK(filled.width == 1920);
+}
 
 REX_TEST_CASE("Vsync presents with sync interval 1 and never tears", "[gpu][present]") {
   const PresentSync with_tearing = ChoosePresentSync(true, true);
@@ -37,8 +118,10 @@ REX_TEST_CASE("No vsync presents with sync interval 0 and tears when the swap ch
   CHECK_FALSE(plain.allow_tearing);
 }
 
-REX_TEST_CASE("Vsync picks FIFO whatever other modes are allowed", "[gpu][present]") {
-  CHECK(ChooseVulkanPresentMode(true, {true, true, true}) == VulkanPresentMode::kFifo);
+REX_TEST_CASE("Vsync picks mailbox, then immediate, then FIFO", "[gpu][present]") {
+  CHECK(ChooseVulkanPresentMode(true, {true, true, true}) == VulkanPresentMode::kMailbox);
+  CHECK(ChooseVulkanPresentMode(true, {true, false, true}) == VulkanPresentMode::kImmediate);
+  CHECK(ChooseVulkanPresentMode(true, {false, false, true}) == VulkanPresentMode::kFifo);
   CHECK(ChooseVulkanPresentMode(true, {false, false, false}) == VulkanPresentMode::kFifo);
 }
 

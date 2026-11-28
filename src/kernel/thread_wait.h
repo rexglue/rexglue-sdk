@@ -32,6 +32,22 @@ namespace rex::kernel {
 bool ServeUI(std::chrono::milliseconds timeout);
 
 /**
+ * Measures the cost of one host block and wake across 2 processors once per process, and sets the
+ * spin bound of contended critical sections to it. Later calls do nothing.
+ */
+void MeasureWaitSpinBound();
+
+/** Returns the longest time a contended critical section spins before it blocks, 0 for none. */
+std::chrono::nanoseconds GetWaitSpinBound();
+
+/**
+ * Replaces the spin bound of contended critical sections.
+ *
+ * @param bound The longest spin, 0 for none.
+ */
+void SetWaitSpinBoundForTest(std::chrono::nanoseconds bound);
+
+/**
  * On a guest thread a stop request wakes the wait and throws ThreadStop. Any other wake waits
  * again for the time left.
  *

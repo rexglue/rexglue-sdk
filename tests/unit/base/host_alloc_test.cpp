@@ -10,14 +10,20 @@
 
 #include "rex_test.h"
 
+#include <catch2/benchmark/catch_benchmark.hpp>
+
+#include <atomic>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <latch>
 #include <new>
 #include <thread>
 #include <vector>
 
 #include <rex/memory/host.h>
+
+#include "benchmark_pool.h"
 
 using rex::memory::GetHostStats;
 using rex::memory::HostAlloc;
@@ -323,3 +329,114 @@ REX_TEST_CASE("Debug builds fill new and freed memory", "[base][memory]") {
 }
 
 #endif
+
+REX_TEST_CASE("Counters from many threads sum to every allocation", "[base][memory][threads]") {
+  constexpr size_t kThreads = 8;
+  constexpr size_t kPerThread = 20000;
+  constexpr size_t kBlock = 48;
+  const auto before = GetHostStats();
+  {
+    std::latch start(kThreads);
+    std::vector<std::jthread> threads;
+    threads.reserve(kThreads);
+    for (size_t t = 0; t < kThreads; ++t) {
+      threads.emplace_back([&start] {
+        TagScope scope(kSecondTag);
+        start.arrive_and_wait();
+        for (size_t i = 0; i < kPerThread; ++i) {
+          void* block = HostAlloc(kBlock);
+          HostFree(block);
+        }
+      });
+    }
+  }
+  const auto after = GetHostStats();
+  const auto& was = before.tags[Index(kSecondTag)];
+  const auto& now = after.tags[Index(kSecondTag)];
+  CHECK(now.total_count == was.total_count + kThreads * kPerThread);
+  CHECK(now.live_bytes == was.live_bytes);
+  CHECK(now.live_count == was.live_count);
+  CHECK(now.peak_bytes >= was.peak_bytes);
+}
+
+REX_TEST_CASE("A block freed by another thread is counted live until then", "[base][memory]") {
+  const auto before = GetHostStats();
+  constexpr size_t kBlocks = 5000;
+  std::vector<void*> blocks;
+  blocks.reserve(kBlocks);
+  {
+    TagScope scope(kThirdTag);
+    for (size_t i = 0; i < kBlocks; ++i) {
+      blocks.push_back(HostAlloc(100));
+    }
+  }
+  const auto during = GetHostStats();
+  CHECK(during.tags[Index(kThirdTag)].live_bytes ==
+        before.tags[Index(kThirdTag)].live_bytes + kBlocks * 100);
+  CHECK(during.tags[Index(kThirdTag)].peak_bytes >= during.tags[Index(kThirdTag)].live_bytes);
+  std::jthread freeing([&blocks] {
+    for (void* block : blocks) {
+      HostFree(block);
+    }
+  });
+  freeing.join();
+  const auto after = GetHostStats();
+  CHECK(after.tags[Index(kThirdTag)].live_bytes == before.tags[Index(kThirdTag)].live_bytes);
+  CHECK(after.tags[Index(kThirdTag)].live_count == before.tags[Index(kThirdTag)].live_count);
+}
+
+namespace {
+
+constexpr size_t kPairs = 100000;
+
+/** Allocates and frees 64 bytes kPairs times with the host allocator. */
+void HostPairs() {
+  for (size_t i = 0; i < kPairs; ++i) {
+    void* block = HostAlloc(64);
+    Catch::Benchmark::keep_memory(block);
+    HostFree(block);
+  }
+}
+
+/** Allocates and frees 64 bytes kPairs times with malloc and free. */
+void MallocPairs() {
+  for (size_t i = 0; i < kPairs; ++i) {
+    void* block = std::malloc(64);
+    Catch::Benchmark::keep_memory(block);
+    std::free(block);
+  }
+}
+
+}  // namespace
+
+REX_TEST_CASE("host allocator cost", "[base][memory][benchmark]") {
+  using rex::test::ThreadPool;
+  // Every case runs on threads started before the timed rounds and released together, so the
+  // host allocator and malloc are timed the same way and the thread start is in none of them.
+  ThreadPool idle_one(1, [](int, rex::test::Caller*) {});
+  ThreadPool idle_eight(8, [](int, rex::test::Caller*) {});
+  ThreadPool host_one(1, [](int, rex::test::Caller*) { HostPairs(); });
+  ThreadPool host_eight(8, [](int, rex::test::Caller*) { HostPairs(); });
+  ThreadPool malloc_one(1, [](int, rex::test::Caller*) { MallocPairs(); });
+  ThreadPool malloc_eight(8, [](int, rex::test::Caller*) { MallocPairs(); });
+  BENCHMARK("baseline: 1 thread released and joined, 0 pairs") {
+    idle_one.Run();
+  };
+  BENCHMARK("baseline: 8 threads released and joined, 0 pairs") {
+    idle_eight.Run();
+  };
+  BENCHMARK("HostAlloc and HostFree of 64 bytes, 1 thread, 100000 pairs") {
+    host_one.Run();
+  };
+  BENCHMARK("HostAlloc and HostFree of 64 bytes, 8 threads, 100000 pairs each") {
+    host_eight.Run();
+  };
+  WARN("8 thread HostAlloc rounds ran together for " << host_eight.GetOverlap() * 100.0
+                                                     << " percent of the round");
+  BENCHMARK("malloc and free of 64 bytes, 1 thread, 100000 pairs") {
+    malloc_one.Run();
+  };
+  BENCHMARK("malloc and free of 64 bytes, 8 threads, 100000 pairs each") {
+    malloc_eight.Run();
+  };
+}

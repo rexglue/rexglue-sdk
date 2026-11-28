@@ -41,14 +41,14 @@ static void WarnIfFailed(std::string_view name, const Result<void>& status) {
   }
 }
 
-static Color LifecycleColor(rex::SettingLife life, const SettingsStyle& style) {
-  switch (life) {
-    case rex::SettingLife::kLive:
+static Color LifecycleColor(rex::SettingMode mode, const SettingsStyle& style) {
+  switch (mode) {
+    case rex::SettingMode::kNormal:
       return style.lifecycle_hot_reload;
-    case rex::SettingLife::kRestart:
+    case rex::SettingMode::kRequiresRestart:
       return style.lifecycle_restart;
-    case rex::SettingLife::kStartupOnly:
-    case rex::SettingLife::kUntilLaunch:
+    case rex::SettingMode::kInitOnly:
+    case rex::SettingMode::kLockedInGame:
       return style.lifecycle_init_only;
   }
   return style.lifecycle_unknown;
@@ -433,21 +433,21 @@ bool SettingsOverlayDialog::Draw(ImGuiIO& io) {
       ImGui::PopID();
       continue;
     } else {
-      ImGui::TextColored(ToImVec4(LifecycleColor(constraints.life, ui_.GetStyle().settings)),
+      ImGui::TextColored(ToImVec4(LifecycleColor(constraints.mode, ui_.GetStyle().settings)),
                          "%-20s", name.c_str());
       if (ImGui::IsItemHovered()) {
         const char* lifecycle_label = "";
-        switch (constraints.life) {
-          case rex::SettingLife::kLive:
+        switch (constraints.mode) {
+          case rex::SettingMode::kNormal:
             lifecycle_label = "Changes apply immediately";
             break;
-          case rex::SettingLife::kRestart:
+          case rex::SettingMode::kRequiresRestart:
             lifecycle_label = "Requires restart to take effect";
             break;
-          case rex::SettingLife::kStartupOnly:
+          case rex::SettingMode::kInitOnly:
             lifecycle_label = "Read only after startup";
             break;
-          case rex::SettingLife::kUntilLaunch:
+          case rex::SettingMode::kLockedInGame:
             lifecycle_label = "Read only after the title launches";
             break;
         }
@@ -493,18 +493,21 @@ bool SettingsOverlayDialog::Draw(ImGuiIO& io) {
                  var->GetType() == rex::SettingType::kU64) {
         if (var->GetType() == rex::SettingType::kU32 || var->GetType() == rex::SettingType::kU64) {
           u64 v = rex::string::from_string<u64>(current_val);
-          if (ImGui::InputScalar("##v", ImGuiDataType_U64, &v)) {
+          if (ImGui::InputScalar("##v", ImGuiDataType_U64, &v) &&
+              ImGui::IsItemDeactivatedAfterEdit()) {
             WarnIfFailed(name, settings_.SetText(name, ClampUnsignedText(constraints, v)));
           }
         } else {
           i64 v = rex::string::from_string<i64>(current_val);
-          if (ImGui::InputScalar("##v", ImGuiDataType_S64, &v)) {
+          if (ImGui::InputScalar("##v", ImGuiDataType_S64, &v) &&
+              ImGui::IsItemDeactivatedAfterEdit()) {
             WarnIfFailed(name, settings_.SetText(name, ClampIntegerText(constraints, v)));
           }
         }
       } else if (var->GetType() == rex::SettingType::kF64) {
         f64 v = rex::string::from_string<f64>(current_val);
-        if (ImGui::InputDouble("##v", &v, 0.0, 0.0, "%.4f")) {
+        if (ImGui::InputDouble("##v", &v, 0.0, 0.0, "%.4f") &&
+            ImGui::IsItemDeactivatedAfterEdit()) {
           if (constraints.min)
             v = std::max(v, *constraints.min);
           if (constraints.max)

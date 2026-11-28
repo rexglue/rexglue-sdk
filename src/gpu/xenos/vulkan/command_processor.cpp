@@ -38,6 +38,7 @@
 #include <rex/xenos/register.h>
 #include "gpu/xenos/vulkan/command_processor.h"
 #include "gpu/xenos/physical_memory.h"
+#include "gpu/xenos/host/present_policy.h"
 #include "gpu/xenos/vulkan/pipeline_cache.h"
 #include "gpu/xenos/vulkan/render_target_cache.h"
 #include "gpu/xenos/vulkan/shader.h"
@@ -2266,6 +2267,7 @@ void VulkanCommandProcessor::IssueSwap([[maybe_unused]] u32 frontbuffer_ptr, u32
   const VideoMode video_mode = title_info_.video_mode;
   u32 display_width = std::max(static_cast<u32>(1), video_mode.width);
   u32 display_height = std::max(static_cast<u32>(1), video_mode.height);
+  TryParsePresentAspect(GetXenosSettings().present_aspect.Get(), display_width, display_height);
 
   presenter->RefreshGuestOutput(
       guest_output_width, guest_output_height, display_width, display_height,
@@ -2918,7 +2920,7 @@ void VulkanCommandProcessor::SubmitBarriersAndEnterRenderTargetCacheRenderPass(
 
   if (use_dynamic_rendering) {
     if (in_render_pass_ && current_framebuffer_ == framebuffer &&
-        current_render_pass_ == VK_NULL_HANDLE) {
+        current_render_pass_ == VK_NULL_HANDLE && current_transfer_dest_view_ == VK_NULL_HANDLE) {
       return;
     }
   } else {
@@ -2938,6 +2940,7 @@ void VulkanCommandProcessor::SubmitBarriersAndEnterRenderTargetCacheRenderPass(
 
   current_render_pass_ = use_dynamic_rendering ? VK_NULL_HANDLE : render_pass;
   current_framebuffer_ = framebuffer;
+  current_transfer_dest_view_ = VK_NULL_HANDLE;
 
   if (use_dynamic_rendering) {
     VkRenderingAttachmentInfo color_attachments[xenos::kMaxColorRenderTargets];
@@ -2990,7 +2993,8 @@ void VulkanCommandProcessor::SubmitBarriersAndEnterRenderTargetCacheRenderPass(
 
   if (use_dynamic_rendering) {
     if (in_render_pass_ && current_framebuffer_ == framebuffer &&
-        current_render_pass_ == VK_NULL_HANDLE) {
+        current_render_pass_ == VK_NULL_HANDLE &&
+        current_transfer_dest_view_ == transfer_dest_view) {
       return;
     }
   } else {
@@ -3010,6 +3014,7 @@ void VulkanCommandProcessor::SubmitBarriersAndEnterRenderTargetCacheRenderPass(
 
   current_render_pass_ = use_dynamic_rendering ? VK_NULL_HANDLE : render_pass;
   current_framebuffer_ = framebuffer;
+  current_transfer_dest_view_ = transfer_dest_view;
 
   if (use_dynamic_rendering) {
     VkRenderingAttachmentInfo color_attachment = {};
@@ -3084,6 +3089,7 @@ void VulkanCommandProcessor::EndRenderPass() {
   }
   current_render_pass_ = VK_NULL_HANDLE;
   current_framebuffer_ = nullptr;
+  current_transfer_dest_view_ = VK_NULL_HANDLE;
   in_render_pass_ = false;
 }
 
@@ -4679,16 +4685,23 @@ void VulkanCommandProcessor::CheckSubmissionFenceAndDeviceLoss(u64 await_submiss
   size_t fences_total = submissions_in_flight_fences_.size();
   size_t fences_awaited = 0;
   if (await_submission > submission_completed_) {
-    VkResult wait_result =
-        dfn.vkWaitForFences(device, static_cast<u32>(await_submission - submission_completed_),
-                            submissions_in_flight_fences_.data(), VK_TRUE, UINT64_MAX);
-    if (wait_result == VK_SUCCESS) {
-      fences_awaited += await_submission - submission_completed_;
-    } else {
-      REXGPU_ERROR("Failed to await submission completion Vulkan fences");
-      if (wait_result == VK_ERROR_DEVICE_LOST) {
-        device_lost_ = true;
+    // Waiting on many fences in one call fails on some drivers, so wait in chunks.
+    constexpr size_t kFenceWaitChunkSize = 32;
+    const size_t fences_to_await = static_cast<size_t>(await_submission - submission_completed_);
+    while (fences_awaited < fences_to_await) {
+      const u32 chunk_size =
+          static_cast<u32>(std::min(kFenceWaitChunkSize, fences_to_await - fences_awaited));
+      VkResult wait_result = dfn.vkWaitForFences(
+          device, chunk_size, submissions_in_flight_fences_.data() + fences_awaited, VK_TRUE,
+          UINT64_MAX);
+      if (wait_result != VK_SUCCESS) {
+        REXGPU_ERROR("Failed to await submission completion Vulkan fences");
+        if (wait_result == VK_ERROR_DEVICE_LOST) {
+          device_lost_ = true;
+        }
+        break;
       }
+      fences_awaited += chunk_size;
     }
   }
   // Checked in order because submissions may execute out of order but are serialized here.
@@ -4845,6 +4858,7 @@ bool VulkanCommandProcessor::BeginSubmission(bool is_guest_command) {
     dynamic_stencil_reference_back_update_needed_ = true;
     current_render_pass_ = VK_NULL_HANDLE;
     current_framebuffer_ = nullptr;
+    current_transfer_dest_view_ = VK_NULL_HANDLE;
     in_render_pass_ = false;
     current_guest_graphics_pipeline_ = VK_NULL_HANDLE;
     current_external_graphics_pipeline_ = VK_NULL_HANDLE;

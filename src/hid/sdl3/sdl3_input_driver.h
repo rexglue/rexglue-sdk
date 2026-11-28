@@ -32,7 +32,7 @@ namespace rex::hid::sdl3 {
 class SDL3InputDriver final : public IInputDriver, public SettingOwner {
  public:
   REX_SETTING(std::filesystem::path, mappings_file, "{app.root}/gamecontrollerdb.txt",
-              "SDL gamepad mappings file", kStartupOnly);
+              "SDL gamepad mappings file", kInitOnly);
 
   SDL3InputDriver();
 
@@ -44,6 +44,7 @@ class SDL3InputDriver final : public IInputDriver, public SettingOwner {
   void EnumerateDevices(std::vector<PadDevice>& out) override;
   [[nodiscard]] Result<PadState> GetDeviceState(PadDeviceID id) override;
   [[nodiscard]] Result<PadCapabilities> GetDeviceCapabilities(PadDeviceID id) override;
+  [[nodiscard]] u16 TakeDevicePresses(PadDeviceID id) override;
   [[nodiscard]] Result<void> SetDeviceVibration(PadDeviceID id,
                                                 const PadVibration& vibration) override;
 

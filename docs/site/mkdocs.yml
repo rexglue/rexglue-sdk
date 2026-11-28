@@ -70,7 +70,9 @@ markdown_extensions:
 nav:
   - Introduction: index.md
   - Getting Started: getting-started.md
-  - Contributing: contributing.md
+  - Contributing:
+      - Contributing: contributing.md
+      - Running the Benchmarks: running-benchmarks.md
   - Code Generation:
       - Codegen Pipeline: codegen/codegen-pipeline.md
       - Generated Code: codegen/generated-code.md
@@ -108,6 +110,7 @@ nav:
       - Log Categories and Macros: appendix/log-categories-and-macros.md
       - Shim List: appendix/shim-list.md
       - Thread List: appendix/thread-list.md
+      - Third Party: appendix/third-party.md
       - Storage Paths: appendix/storage-paths.md
       - File Exports: appendix/file-exports.md
       - XAM Input Exports: appendix/xam-input-exports.md

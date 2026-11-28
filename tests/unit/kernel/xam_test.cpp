@@ -25,6 +25,8 @@
 #include "kernel/title_state.h"
 #include "xam/xam_state.h"
 #include <atomic>
+#include <string>
+#include <string_view>
 #include <rex/kernel/title_exit.h>
 #include <rex/kernel/xboxkrnl.h>
 #include <rex/title.h>
@@ -292,23 +294,42 @@ using rex::test::Caller;
 using rex::test::KernelFixture;
 
 namespace {
-constexpr u32 kOutputSize = 0x100;
+constexpr u32 kCertificateSize = 0x1A8;
 }
 
-REX_TEST_CASE("xekeys: the console sign export returns 0 and leaves the output untouched",
-              "[kernel][crypt]") {
+REX_TEST_CASE("xekeys: the console sign export fills a certificate", "[kernel][crypt]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     const u32 hash = c.Alloc(0x14);
-    const u32 output = c.Alloc(kOutputSize);
-    for (u32 offset = 0; offset < kOutputSize; offset += 4) {
-      c.Store32(output + offset, 0xCDCDCDCD);
+    const u32 certificate = c.Alloc(kCertificateSize);
+    for (u32 offset = 0; offset < kCertificateSize; offset += 4) {
+      c.Store32(certificate + offset, 0xCDCDCDCD);
     }
-    CHECK(c.Kernel("XeKeysConsolePrivateKeySign", {hash, output}) == 0);
-    for (u32 offset = 0; offset < kOutputSize; offset += 4) {
-      CHECK(c.Load32(output + offset) == 0xCDCDCDCD);
-    }
+    CHECK(c.Kernel("XeKeysConsolePrivateKeySign", {hash, certificate}) == 1);
+    CHECK(c.Load32(certificate) == 0x00009301);
+    CHECK(c.Load32(certificate + 4) == 0x64E60700);
+    CHECK(c.Load32(certificate + 0x18) == 2);
+    CHECK(c.Load32(certificate + 0x1C) == 0x02000005);
+    CHECK(c.Load32(certificate + 0x20) == 0x01010202);
+    CHECK(c.Load32(certificate + 0x24) == 0);
+    CHECK(c.Load32(certificate + 0x1A4) == 0);
+  });
+}
+
+REX_TEST_CASE("xekeys: the console sign export returns 0 for a null output", "[kernel][crypt]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 hash = c.Alloc(0x14);
     CHECK(c.Kernel("XeKeysConsolePrivateKeySign", {hash, 0}) == 0);
+  });
+}
+
+REX_TEST_CASE("xekeys: the console signature verification export accepts a signature",
+              "[kernel][crypt]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 buffer = c.Alloc(0x100);
+    CHECK(c.Kernel("XeKeysConsoleSignatureVerification", {buffer, buffer, buffer}) == 1);
   });
 }
 
@@ -360,5 +381,45 @@ REX_TEST_CASE("VdQueryVideoMode returns the runtime video mode", "[kernel][video
     CHECK(static_cast<rex::u32>(mode.is_widescreen) == 1);
     CHECK(static_cast<rex::u32>(mode.is_hi_def) == 1);
     CHECK(static_cast<rex::u32>(mode.is_interlaced) == 0);
+  });
+}
+
+namespace {
+
+u32 PutWide(rex::test::Caller& c, std::u16string_view text) {
+  const u32 address = c.Alloc(static_cast<u32>(text.size() + 2) * 2);
+  for (size_t i = 0; i < text.size(); i += 2) {
+    const u32 high = text[i];
+    const u32 low = i + 1 < text.size() ? text[i + 1] : 0;
+    c.Store32(address + static_cast<u32>(i) * 2, (high << 16) | low);
+  }
+  return address;
+}
+
+std::u16string ReadWide(rex::test::Caller& c, u32 address) {
+  std::u16string text;
+  for (;;) {
+    const u32 offset = static_cast<u32>(text.size()) * 2;
+    const char16_t unit =
+        static_cast<char16_t>((c.Load8(address + offset) << 8) | c.Load8(address + offset + 1));
+    if (!unit) {
+      return text;
+    }
+    text.push_back(unit);
+  }
+}
+
+}  // namespace
+
+REX_TEST_CASE("XAM: a resource locator is built from host order names", "[kernel][xam]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 buffer = c.Alloc(256);
+    const u32 container = PutWide(c, u"foo");
+    const u32 resource = PutWide(c, u"bar");
+    CHECK(c.XAM("XamBuildResourceLocator", {0, container, resource, buffer, 64}) == 0);
+    CHECK(ReadWide(c, buffer) == u"file://media:/foo.xzp#bar");
+    CHECK(c.XAM("XamBuildResourceLocator", {0x2A, container, resource, buffer, 64}) == 0);
+    CHECK(ReadWide(c, buffer) == u"section://2A,foo#bar");
   });
 }

@@ -8,7 +8,7 @@ These are the files that `rexglue codegen` writes into the output folder of each
 | `foobar_funcs.h` | Declares every function with `DECLARE_REX_FUNC`, imports included. |
 | `foobar_init.h` | Includes `foobar_pch.h` and `foobar_funcs.h`. |
 | `foobar_init.cpp` | Defines `kPPCImageConfig`, the function mappings and the call usage table. |
-| `foobar_register.cpp` | Defines a function for each import from another recompiled module. Also defines `foobar_RegisterFunctions` for the entrypoint, or `ReXRegisterModule` and `ReXGetModuleImage` for a DLL module. |
+| `foobar_register.cpp` | Defines a function for each import from another recompiled module. Also defines `foobar_RegisterFunctions` for the entrypoint, or `ReXRegisterModule` and `ReXGetModuleImage` for a DLL module. The register function adds each function to the function table. |
 | `foobar_recomp.0.cpp`, `foobar_recomp.1.cpp` and up | Define the function bodies, ordered by address. |
 | `foobar_funcs.0.h`, `foobar_funcs.1.h` and up | Each declares the functions that the `.cpp` file of the same number references. |
 | `sources.cmake` | Sets `GENERATED_SOURCES` to the `.cpp` files to compile. |
@@ -20,7 +20,6 @@ The entrypoint folder also holds these files:
 
 | File | Purpose |
 |---|---|
-| `codegen.d` | Lists the inputs of the run, so the build reruns codegen when one changes. |
-| `codegen.build.stamp` | The output file of the rule in `codegen.d`. Holds the fingerprint of each binary. |
+| `codegen.build.stamp` | The file that the build step for codegen produces. The build compares it against its inputs to decide when to rerun codegen. Holds the fingerprint of each binary. |
 | `module_registry.cpp` | Registers the DLL modules with the runtime. Written only when the manifest lists `[[modules]]`. |
 | `dll_targets.cmake` | Defines a shared library target for each DLL module. Written only when the manifest lists `[[modules]]`. |

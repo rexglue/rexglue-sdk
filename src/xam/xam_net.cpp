@@ -650,11 +650,18 @@ void NetDll_XNetInAddrToString_entry([[maybe_unused]] u32 caller, [[maybe_unused
   rex::string::CopyTruncating(string_out, "666.666.666.666", string_size);
 }
 
-u32 NetDll_XNetXnAddrToInAddr_entry([[maybe_unused]] u32 caller,
-                                    [[maybe_unused]] GuestPtrT<XNADDR> xn_addr,
-                                    [[maybe_unused]] MappedVoid xid,
-                                    [[maybe_unused]] MappedVoid in_addr) {
-  return 1;
+u32 NetDll_XNetXnAddrToInAddr_entry([[maybe_unused]] u32 caller, GuestPtrT<XNADDR> xn_addr,
+                                    [[maybe_unused]] MappedVoid xid, MappedVoid in_addr) {
+  if (!xn_addr || !in_addr) {
+    return 1;
+  }
+  u32 addr = 0;
+  std::memcpy(&addr, &xn_addr->inaOnline, sizeof(addr));
+  if (!addr) {
+    std::memcpy(&addr, &xn_addr->ina, sizeof(addr));
+  }
+  std::memcpy(in_addr.GetHostPtr(), &addr, sizeof(addr));
+  return addr ? 0 : 1;
 }
 
 u32 NetDll_XNetInAddrToXnAddr_entry([[maybe_unused]] u32 caller,
@@ -870,6 +877,14 @@ u32 NetDll_bind_entry([[maybe_unused]] u32 caller, u32 socket_handle, GuestPtrT<
   }
 
   N_XSOCKADDR_IN native_name(name);
+
+  const u32 port = native_name.sin_port;
+  if (port > 0 && port < 1024) {
+    native_name.sin_port = static_cast<u16>(port + 10000);
+    REXXAM_WARN("NetDll_bind: port {} requires privileges, remapping to port {}", port,
+                port + 10000);
+  }
+
   kernel::X_STATUS status = socket->Bind(&native_name, namelen);
   if (kernel::XFAILED(status)) {
     CurrentThread().SetLastError(IsValidNameLength(namelen) ? CallError(*socket) : kWSAEFAULT);

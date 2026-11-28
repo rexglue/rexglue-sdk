@@ -2,6 +2,7 @@
 #include "../ui/ui.h"
 #include "app_name.h"
 #include "codegen/tool_runtime.h"
+#include "package_registry.h"
 
 #include <algorithm>
 #include <chrono>
@@ -40,9 +41,10 @@ using rex::Ok;
 
 namespace {
 
+/** Where the running SDK is. One folder is set: the install, or the source tree it was built in. */
 struct SDKLocation {
-  std::string prefix;
-  std::string source_dir;
+  fs::path prefix;
+  fs::path source;
 };
 
 SDKLocation FindSDK(const fs::path& exe) {
@@ -57,12 +59,12 @@ SDKLocation FindSDK(const fs::path& exe) {
     if (ec)
       continue;
     if (fs::exists(prefix / libdir / "cmake" / "rexglue" / "rexglueConfig.cmake", ec)) {
-      found.prefix = prefix.generic_string();
+      found.prefix = prefix;
       return found;
     }
     for (const auto& entry : it) {
       if (fs::exists(entry.path() / "cmake" / "rexglue" / "rexglueConfig.cmake", ec)) {
-        found.prefix = prefix.generic_string();
+        found.prefix = prefix;
         return found;
       }
     }
@@ -72,18 +74,23 @@ SDKLocation FindSDK(const fs::path& exe) {
     if (fs::exists(dir / "CMakeLists.txt", ec) &&
         fs::exists(dir / "cmake" / "rexglue_sdk.cmake", ec) &&
         fs::exists(dir / "include" / "rex", ec)) {
-      found.source_dir = dir.generic_string();
+      found.source = dir;
       return found;
     }
   }
   return found;
 }
 
-std::string ManifestPath(const fs::path& target, const fs::path& base) {
+/** Writes the target as a path relative to the base, which fails when no relative path exists. */
+Result<std::string> ManifestPath(const fs::path& target, const fs::path& base) {
   std::error_code ec;
   fs::path rel = fs::relative(target, base, ec);
   if (ec || rel.empty()) {
-    return target.generic_string();
+    return Err<std::string>(
+        ErrorCategory::kConfig,
+        std::format("{} cannot be written as a path relative to {}. Put the game files and the "
+                    "project on the same drive.",
+                    target.string(), base.string()));
   }
   return rel.generic_string();
 }
@@ -167,8 +174,14 @@ Result<void> InitProject(const InitOptions& opts, const CLIContext& ctx) {
   }
 
   std::string out_dir = rex::string::utf8_lower_ascii("generated/" + xex_stem);
-  std::string xex_rel_manifest = ManifestPath(xex_abs, project_root);
-  std::string game_root_rel_manifest = ManifestPath(game_root_abs, project_root);
+  auto xex_rel = ManifestPath(xex_abs, project_root);
+  if (!xex_rel)
+    return Err<void>(xex_rel.error());
+  auto game_root_rel = ManifestPath(game_root_abs, project_root);
+  if (!game_root_rel)
+    return Err<void>(game_root_rel.error());
+  const std::string& xex_rel_manifest = *xex_rel;
+  const std::string& game_root_rel_manifest = *game_root_rel;
 
   nlohmann::json modules_json = nlohmann::json::array();
   if (opts.scan_dlls) {
@@ -191,10 +204,13 @@ Result<void> InitProject(const InitOptions& opts, const CLIContext& ctx) {
         ec.clear();
         continue;
       }
+      auto dll_rel = ManifestPath(dll_abs, project_root);
+      if (!dll_rel)
+        return Err<void>(dll_rel.error());
       modules_json.push_back({
           {rex::codegen::kModuleGuestPathKey, rex::codegen::CanonicalizeModuleGuestPath(
                                                   rel_under_game.generic_string(), names.original)},
-          {"file_path", ManifestPath(dll_abs, project_root)},
+          {"file_path", *dll_rel},
           {"out_directory_path", "generated/" + ModuleStem(dll_abs)},
       });
     }
@@ -204,8 +220,15 @@ Result<void> InitProject(const InitOptions& opts, const CLIContext& ctx) {
   if (!opts.template_dir.empty())
     registry.LoadOverrides(opts.template_dir);
 
-  const SDKLocation sdk =
-      FindSDK(opts.sdk_exe.empty() ? rex::platform::GetExecutablePath() : opts.sdk_exe);
+  const SDKLocation sdk = FindSDK(rex::platform::GetExecutablePath());
+  // A source tree inside the project, such as a submodule, is a folder relative to the project.
+  std::string sdk_dir;
+  if (!sdk.source.empty()) {
+    const fs::path relative = fs::relative(fs::weakly_canonical(sdk.source, ec), project_root, ec);
+    if (!ec && !relative.empty() && *relative.begin() != "..") {
+      sdk_dir = relative.generic_string();
+    }
+  }
   nlohmann::json data = {
       {"names", NamesToJSON(names)},
       {"sdk_version", REXGLUE_VERSION_FLOOR},
@@ -217,8 +240,7 @@ Result<void> InitProject(const InitOptions& opts, const CLIContext& ctx) {
       {"out_directory_path", out_dir},
       {"entrypoint_out_dir", out_dir},
       {"modules", modules_json},
-      {"sdk_prefix", sdk.prefix},
-      {"sdk_dir", sdk.source_dir},
+      {"sdk_dir", sdk_dir},
   };
   std::string json_str = data.dump();
 
@@ -229,6 +251,20 @@ Result<void> InitProject(const InitOptions& opts, const CLIContext& ctx) {
   header_rows.push_back({"Game root", game_root_rel_manifest});
   if (opts.scan_dlls) {
     header_rows.push_back({"DLL modules", std::to_string(modules_json.size())});
+  }
+  if (!sdk.prefix.empty() && !IsPackageRegistered(sdk.prefix)) {
+    const std::string folder = sdk.prefix.generic_string();
+    header_rows.push_back(
+        {"SDK",
+         std::format("{} is not in the CMake user package registry. Set the CMAKE_PREFIX_PATH "
+                     "environment variable to it, or pass -DCMAKE_PREFIX_PATH={} at configure.",
+                     folder, folder)});
+  }
+  if (!sdk.source.empty() && sdk_dir.empty()) {
+    const std::string folder = sdk.source.generic_string();
+    header_rows.push_back(
+        {"SDK source",
+         std::format("{} (pass -DREXSDK_DIR={} to build it with the project)", folder, folder)});
   }
   ui::KeyValueBlock("Initializing project:", header_rows);
 
@@ -327,7 +363,10 @@ Result<void> InitModule(const InitModuleOptions& opts, const CLIContext& ctx) {
     return Err<void>(ErrorCategory::kIO, std::format("XEX file not found: {} (resolved from {})",
                                                      xex_abs.string(), opts.xex_path));
   std::string module_name = ModuleStem(xex_abs);
-  std::string xex_rel = fs::relative(xex_abs, root).generic_string();
+  auto xex_rel_path = ManifestPath(xex_abs, root);
+  if (!xex_rel_path)
+    return Err<void>(xex_rel_path.error());
+  const std::string& xex_rel = *xex_rel_path;
   std::string guest_path =
       rex::codegen::CanonicalizeModuleGuestPath(opts.guest_path, manifest->project_name);
 

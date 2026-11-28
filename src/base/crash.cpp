@@ -44,6 +44,7 @@ std::atomic<bool> g_installed{false};
 std::atomic<CrashAddressDescriber> g_describer{nullptr};
 std::atomic_flag g_reporting = ATOMIC_FLAG_INIT;
 thread_local bool t_reporting = false;
+thread_local bool t_reading_exception = false;
 std::terminate_handler g_previous_terminate = nullptr;
 bool g_raw_output = false;
 char g_line[kLineSize];
@@ -165,16 +166,23 @@ void DescribeAddress(u64 address) {
 }
 
 [[noreturn]] void OnTerminate() {
+  if (t_reading_exception) {
+    // The rethrow below found no active exception, so it called std::terminate a second time.
+    detail::ReportMessage("std::terminate with no active exception");
+    detail::EndReport();
+    std::abort();
+  }
   if (detail::BeginReport()) {
-    std::string message = "std::terminate with no active exception";
-    if (std::exception_ptr active = std::current_exception()) {
-      try {
-        std::rethrow_exception(active);
-      } catch (const std::exception& error) {
-        message = std::format("uncaught {}: {}", TypeName(typeid(error)), error.what());
-      } catch (...) {
-        message = "uncaught exception of a type not derived from std::exception";
-      }
+    std::string message;
+    t_reading_exception = true;
+    try {
+      throw;
+    } catch (const std::exception& error) {
+      t_reading_exception = false;
+      message = std::format("uncaught {}: {}", TypeName(typeid(error)), error.what());
+    } catch (...) {
+      t_reading_exception = false;
+      message = "uncaught exception of a type not derived from std::exception";
     }
     detail::ReportMessage(message);
     detail::EndReport();
@@ -194,6 +202,10 @@ bool BeginReport() {
   }
   t_reporting = true;
   return true;
+}
+
+bool IsReadingException() {
+  return t_reading_exception;
 }
 
 void WaitForOtherReport() {

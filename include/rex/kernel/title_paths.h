@@ -21,18 +21,19 @@ namespace rex::kernel {
 class REX_KERNEL_API TitlePaths final : public SettingOwner {
  public:
   REX_SETTING(std::filesystem::path, game_root, "",
-              "Game files, mounted as game:, read only unless game_writable is set", kUntilLaunch);
+              "Game files, mounted as game:, read only unless game_writable is set", kLockedInGame);
   REX_SETTING(bool, game_writable, false, "Mount game: read write instead of read only",
-              kUntilLaunch);
+              kLockedInGame);
   REX_SETTING(std::filesystem::path, update_root, "", "Title update files, empty for none",
-              kUntilLaunch);
-  REX_SETTING(std::filesystem::path, metadata_root, "{app.root}/metadata",
-              "Achievement icons and other title metadata", kUntilLaunch);
+              kLockedInGame);
+  REX_SETTING(std::filesystem::path, metadata_root, "",
+              "Achievement icons and other title metadata, empty searches near title.game_root",
+              kLockedInGame);
   REX_SETTING(std::string, entry, "default.xex",
-              "Executable under game: that TitleRuntime::Load runs, empty loads none",
-              kUntilLaunch);
+              "Executable under game: that TitleRuntime::Load loads, empty loads none",
+              kLockedInGame);
   REX_SETTING(std::string, imports, "",
-              "Files under game: the executable may import from, separated by |", kUntilLaunch);
+              "Files under game: the executable may import from, separated by |", kLockedInGame);
 
   TitlePaths();
 };

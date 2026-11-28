@@ -379,6 +379,21 @@ REX_TEST_CASE("net: a recv with no data on a nonblocking socket fails with WSAEW
   });
 }
 
+REX_TEST_CASE("net: a recvfrom on an unbound blocking datagram socket fails with WSAEINVAL",
+              "[kernel][net][error]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    REQUIRE(c.XAM("NetDll_WSAStartup", {0, 0x0202, c.Alloc(0x200)}) == 0);
+    const u32 datagram = c.XAM("NetDll_socket", {0, 2, 2, 17});
+    REQUIRE(datagram != kSocketError);
+    const u32 buffer = c.Alloc(16);
+    CHECK(LastErrorOf(c, "NetDll_recvfrom", {0, datagram, buffer, 16, 0, 0, 0}) == kWSAEINVAL);
+    CHECK(LastErrorOf(c, "NetDll_recv", {0, datagram, buffer, 16, 0}) == kWSAEINVAL);
+    CHECK(c.XAM("NetDll_closesocket", {0, datagram}) == 0);
+    CHECK(c.XAM("NetDll_WSACleanup", {0}) == 0);
+  });
+}
+
 REX_TEST_CASE("net: send and shutdown on an unconnected stream socket fail with WSAENOTCONN",
               "[kernel][net][error]") {
   KernelFixture fixture;
@@ -422,6 +437,18 @@ REX_TEST_CASE("net: a bind to a port in use fails with WSAEADDRINUSE", "[kernel]
           kWSAEADDRINUSE);
     CHECK(c.XAM("NetDll_closesocket", {0, second}) == 0);
     CHECK(c.XAM("NetDll_closesocket", {0, first}) == 0);
+    CHECK(c.XAM("NetDll_WSACleanup", {0}) == 0);
+  });
+}
+
+REX_TEST_CASE("net: a bind to a privileged port binds the port 10000 above it", "[kernel][net]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    REQUIRE(c.XAM("NetDll_WSAStartup", {0, 0x0202, c.Alloc(0x200)}) == 0);
+    const u32 datagram = c.XAM("NetDll_socket", {0, 2, 2, 17});
+    REQUIRE(c.XAM("NetDll_bind", {0, datagram, LoopbackAddress(c, 987), 16}) == 0);
+    CHECK(PortOf(c, datagram) == 10987);
+    CHECK(c.XAM("NetDll_closesocket", {0, datagram}) == 0);
     CHECK(c.XAM("NetDll_WSACleanup", {0}) == 0);
   });
 }
@@ -1431,5 +1458,28 @@ REX_TEST_CASE("net: an accepted stream socket disables Nagle on the host",
     CHECK(c.XAM("NetDll_closesocket", {0, client}) == 0);
     CHECK(c.XAM("NetDll_closesocket", {0, listener}) == 0);
     CHECK(c.XAM("NetDll_WSACleanup", {0}) == 0);
+  });
+}
+
+REX_TEST_CASE("net: XNetXnAddrToInAddr writes the online address, else the LAN address",
+              "[kernel][net]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 xn_addr = c.Alloc(0x24);
+    const u32 in_addr = c.Alloc(4);
+
+    c.Store32(xn_addr, 0xC0A80102);
+    c.Store32(xn_addr + 4, 0x0A000007);
+    c.Store32(in_addr, 0);
+    CHECK(c.XAM("NetDll_XNetXnAddrToInAddr", {0, xn_addr, 0, in_addr}) == 0);
+    CHECK(c.Load32(in_addr) == 0x0A000007);
+
+    c.Store32(xn_addr + 4, 0);
+    c.Store32(in_addr, 0);
+    CHECK(c.XAM("NetDll_XNetXnAddrToInAddr", {0, xn_addr, 0, in_addr}) == 0);
+    CHECK(c.Load32(in_addr) == 0xC0A80102);
+
+    c.Store32(xn_addr, 0);
+    CHECK(c.XAM("NetDll_XNetXnAddrToInAddr", {0, xn_addr, 0, in_addr}) != 0);
   });
 }

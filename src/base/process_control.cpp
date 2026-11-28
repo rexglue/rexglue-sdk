@@ -8,17 +8,18 @@
 
 namespace rex {
 
-void ProcessSettingsControl::Freeze(SettingLife life) {
-  if (life == SettingLife::kStartupOnly) {
+void ProcessSettingsControl::Freeze(SettingMode mode) {
+  if (mode == SettingMode::kInitOnly) {
     g_startup_frozen = true;
   }
-  if (life == SettingLife::kUntilLaunch) {
+  if (mode == SettingMode::kLockedInGame) {
     g_launch_frozen = true;
   }
+  REX_SETTINGS().WaitForCommits();
 }
 
-void ProcessSettingsControl::Thaw(SettingLife life) {
-  if (life == SettingLife::kUntilLaunch) {
+void ProcessSettingsControl::Thaw(SettingMode mode) {
+  if (mode == SettingMode::kLockedInGame) {
     g_launch_frozen = false;
   }
 }

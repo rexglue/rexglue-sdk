@@ -19,6 +19,7 @@
 #include <thread>
 #include <vector>
 
+#include "kernel/xma/context.h"
 #include "kernel/xma/decoder.h"
 #include <rex/logging/logger.h>
 #include <rex/ppc/mmio.h>
@@ -127,4 +128,20 @@ REX_TEST_CASE("Signaling an XMA context outside the context array writes no regi
     CHECK(decoder->ReadRegister(kEnableBase + i * 4) == before[i]);
   }
   CHECK(decoder->SignalContext(0x1A40, array + 5 * 64));
+}
+
+REX_TEST_CASE("An XMA loop end inside the packet header is no loop end", "[kernel][xma]") {
+  const std::array<rex::u8, sizeof(rex::kernel::XMA_CONTEXT_DATA)> zeros{};
+  rex::kernel::XMA_CONTEXT_DATA data(zeros.data());
+  data.loop_count = 255;
+  data.loop_start = 0;
+  data.loop_end = 0;
+  data.input_buffer_read_offset = rex::kernel::XMAContext::kBitsPerPacketHeader;
+  CHECK_FALSE(rex::kernel::XMAContext::IsAtLoopEnd(data));
+
+  data.loop_end = rex::kernel::XMAContext::kBitsPerPacketHeader;
+  CHECK(rex::kernel::XMAContext::IsAtLoopEnd(data));
+
+  data.loop_count = 0;
+  CHECK_FALSE(rex::kernel::XMAContext::IsAtLoopEnd(data));
 }

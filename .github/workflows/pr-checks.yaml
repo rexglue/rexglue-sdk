@@ -148,6 +148,9 @@ jobs:
       - name: Run clang-tidy on the changed files
         run: python3 scripts/lint.py out/build/linux-amd64 --since ${{ needs.prepare.outputs.base }} --clang-tidy clang-tidy-22
 
+      - name: Build the tests
+        run: cmake --build out/build/linux-amd64 --config Debug --target rexglue_tests --parallel
+
       - name: Run the unit tests
         if: ${{ !cancelled() }}
         run: ctest --test-dir out/build/linux-amd64 -C Debug --output-on-failure --timeout 300

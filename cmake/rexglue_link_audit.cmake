@@ -140,7 +140,7 @@ function (_rexglue_audit_forbidden target_name)
   endforeach ()
 endfunction ()
 
-# Keeps SDL and ImGui out of core and runtime, and SDL, ImGui and the GPU drivers out of ui.
+# Excludes SDL and ImGui from core and runtime, and SDL, ImGui and the GPU drivers from ui.
 # rexglue_audit_host_service_links covers rexgpu.
 function (rexglue_audit_ui_links)
   set(sdl_libs SDL3::SDL3 SDL3::SDL3-shared SDL3::SDL3-static)
@@ -151,7 +151,7 @@ function (rexglue_audit_ui_links)
       d3d12
       dxgi
       dxguid
-      Vulkan::Headers
+      rex-vulkan-headers
       dxc-headers
   )
   _rexglue_audit_forbidden(rexbase ${sdl_libs})
@@ -162,7 +162,7 @@ rexglue_audit_core_linkage()
 rexglue_audit_core_tier()
 rexglue_audit_ui_links()
 
-# Keeps host libraries out of the neutral targets and out of rexkernel.
+# Excludes host libraries from the neutral targets and from rexkernel.
 function (rexglue_audit_host_service_links)
   set(host_libs
       SDL3::SDL3
@@ -172,7 +172,7 @@ function (rexglue_audit_host_service_links)
       d3d12
       dxgi
       dxguid
-      Vulkan::Headers
+      rex-vulkan-headers
   )
   foreach (target_name IN ITEMS rexgpu)
     if (NOT TARGET ${target_name})
@@ -307,3 +307,89 @@ function (rexglue_audit_host_allocator)
 endfunction ()
 
 rexglue_audit_host_allocator()
+
+# Lists every target that a target links or takes objects from, through the targets in between.
+function (_rexglue_link_closure target_name out_var)
+  set(queue ${target_name})
+  set(seen "")
+  while (queue)
+    list(POP_FRONT queue current)
+    if (current IN_LIST seen)
+      continue()
+    endif ()
+    list(APPEND seen ${current})
+    get_target_property(links ${current} LINK_LIBRARIES)
+    get_target_property(interface_links ${current} INTERFACE_LINK_LIBRARIES)
+    get_target_property(imported ${current} IMPORTED)
+    set(sources "")
+    if (NOT imported)
+      get_target_property(sources ${current} SOURCES)
+    endif ()
+    set(names "")
+    foreach (item IN LISTS links interface_links)
+      if (item MATCHES "\\$<")
+        string(REGEX MATCHALL "[A-Za-z0-9_.+-]+(::[A-Za-z0-9_.+-]+)?" tokens "${item}")
+        list(APPEND names ${tokens})
+      else ()
+        list(APPEND names "${item}")
+      endif ()
+    endforeach ()
+    foreach (source IN LISTS sources)
+      if (source MATCHES "^\\$<TARGET_OBJECTS:([^>]+)>$")
+        list(APPEND names "${CMAKE_MATCH_1}")
+      endif ()
+    endforeach ()
+    foreach (name IN LISTS names)
+      if (TARGET "${name}")
+        _rexglue_resolve_alias("${name}" real)
+        list(APPEND queue "${real}")
+      endif ()
+    endforeach ()
+  endwhile ()
+  list(REMOVE_ITEM seen ${target_name})
+  set(${out_var}
+      "${seen}"
+      PARENT_SCOPE
+  )
+endfunction ()
+
+# The GNU binutils disassembler is GPL 2.0 or later, and the codegen library includes it. Only the
+# codegen library, the rexglue tool and the test executables link either of them.
+function (rexglue_audit_codegen_containment)
+  set(gpl_targets disasm rexcodegen rexcodegen-objects)
+  set(allowed disasm rexcodegen rexcodegen-objects rexglue rexglue-objects)
+  _rexglue_collect_targets("${PROJECT_SOURCE_DIR}" all_targets)
+  set(violations "")
+  foreach (target_name IN LISTS all_targets)
+    if (target_name IN_LIST allowed)
+      continue()
+    endif ()
+    get_target_property(type ${target_name} TYPE)
+    get_target_property(source_dir ${target_name} SOURCE_DIR)
+    file(RELATIVE_PATH relative_dir "${PROJECT_SOURCE_DIR}" "${source_dir}")
+    if (type STREQUAL "EXECUTABLE" AND relative_dir MATCHES "^tests(/|$)")
+      continue()
+    endif ()
+    _rexglue_link_closure(${target_name} closure)
+    set(reached "")
+    foreach (gpl_target IN LISTS gpl_targets)
+      if (gpl_target IN_LIST closure)
+        list(APPEND reached ${gpl_target})
+      endif ()
+    endforeach ()
+    if (reached)
+      list(JOIN reached ", " reached_text)
+      list(APPEND violations "  ${target_name} links ${reached_text}")
+    endif ()
+  endforeach ()
+  if (violations)
+    list(JOIN violations "\n" detail)
+    message(
+      FATAL_ERROR
+        "link audit: only the codegen library, the rexglue tool and the test executables link the "
+        "GPL disassembler and the codegen library\n${detail}"
+    )
+  endif ()
+endfunction ()
+
+rexglue_audit_codegen_containment()

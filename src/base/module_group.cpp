@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <format>
 #include <functional>
+#include <mutex>
 
 #include <rex/platform/dynlib.h>
 #include <rex/platform/file.h>
@@ -42,6 +43,28 @@ bool Matches(const InterfaceType& type, std::string_view name, u32 version) {
   return type.version == version && name == type.name;
 }
 
+/** Returns the type the entry lists under the name and version, or null. */
+const InterfaceType* Listed(const Entry& entry, std::string_view name, u32 version) {
+  for (const InterfaceType& type : entry.types) {
+    if (Matches(type, name, version)) {
+      return &type;
+    }
+  }
+  return nullptr;
+}
+
+/** Asks the entry for a type it lists. The listed name ends in NUL, so it needs no copy. */
+IInterface* Ask(Entry& entry, const InterfaceType& listed) {
+  if (Matches(IModule::kInterface, listed.name, listed.version)) {
+    return entry.module;
+  }
+  if (entry.create) {
+    return entry.create(listed.name, listed.version);
+  }
+  return entry.module->QueryInterface(listed.name, listed.version);
+}
+
+/** Asks the entry for a name it may not list. The name is copied so it ends in NUL. */
 IInterface* Query(Entry& entry, std::string_view name, u32 version) {
   if (Matches(IModule::kInterface, name, version)) {
     return entry.module;
@@ -71,20 +94,102 @@ struct ModuleGroup::State {
     entry.inited = false;
   }
 
-  bool IsPrivate(std::string_view name, u32 version) const {
+  /** The private types of the host and of every module, rebuilt when either list changes. */
+  std::vector<InterfaceType> private_types;
+  std::mutex warned_mutex;
+  std::vector<std::string> warned;
+
+  void RebuildPrivate() {
+    private_types.clear();
     for (const Served& host : served) {
-      if (host.type.is_private && Matches(host.type, name, version)) {
-        return true;
+      if (host.type.is_private) {
+        private_types.push_back(host.type);
       }
     }
     for (const auto& entry : entries) {
       for (const InterfaceType& type : entry->types) {
-        if (type.is_private && Matches(type, name, version)) {
-          return true;
+        if (type.is_private) {
+          private_types.push_back(type);
         }
       }
     }
-    return false;
+  }
+
+  bool IsPrivate(std::string_view name, u32 version) const {
+    return std::ranges::any_of(
+        private_types, [&](const InterfaceType& type) { return Matches(type, name, version); });
+  }
+
+  /** Logs once for each name that a module answered without listing it. */
+  void WarnUnlisted(const Entry& entry, std::string_view name, u32 version) {
+    const std::string key = std::format("{} {}", name, version);
+    {
+      std::lock_guard lock(warned_mutex);
+      if (std::ranges::find(warned, key) != warned.end()) {
+        return;
+      }
+      warned.push_back(key);
+    }
+    REXLOG_WARN("module '{}' answered {} version {} without listing it as served", entry.label,
+                name, version);
+  }
+
+  /**
+   * Finds the first answer among the candidates in list order. Only a module that lists the name
+   * is asked. When no candidate lists it, every candidate is asked, so a module that answers a
+   * name it does not list is found and reported once.
+   *
+   * @param name The interface name.
+   * @param version The interface version.
+   * @param each Calls its argument for each candidate entry in order until that returns true.
+   * @return The interface, or null.
+   */
+  template <typename Each>
+  IInterface* Lookup(std::string_view name, u32 version, Each&& each) {
+    IInterface* found = nullptr;
+    bool listed_any = false;
+    each([&](Entry& entry) {
+      if (const InterfaceType* listed = Listed(entry, name, version)) {
+        listed_any = true;
+        found = Ask(entry, *listed);
+        return found != nullptr;
+      }
+      return false;
+    });
+    if (found || listed_any) {
+      return found;
+    }
+    each([&](Entry& entry) {
+      found = Query(entry, name, version);
+      if (found) {
+        WarnUnlisted(entry, name, version);
+      }
+      return found != nullptr;
+    });
+    return found;
+  }
+
+  /**
+   * Collects the answer of every candidate. A module that lists the name is asked with the listed
+   * name. A module that does not list it is asked with a copy of the name, and the host logs a
+   * warning once when it answers. A caller that wants every provider runs once at startup, so no
+   * module is skipped.
+   */
+  template <typename Each>
+  std::vector<IInterface*> Collect(std::string_view name, u32 version, Each&& each) {
+    std::vector<IInterface*> found;
+    each([&](Entry& entry) {
+      if (const InterfaceType* listed = Listed(entry, name, version)) {
+        if (IInterface* iface = Ask(entry, *listed)) {
+          found.push_back(iface);
+        }
+      } else if (IInterface* iface = Query(entry, name, version)) {
+        WarnUnlisted(entry, name, version);
+        found.push_back(iface);
+      }
+      return false;
+    });
+    return found;
   }
 
   IInterface* FindBefore(size_t limit, std::string_view name, u32 version, bool allow_private) {
@@ -96,12 +201,13 @@ struct ModuleGroup::State {
         return host.iface;
       }
     }
-    for (size_t i = 0; i < limit && i < entries.size(); ++i) {
-      if (IInterface* found = Query(*entries[i], name, version)) {
-        return found;
+    return Lookup(name, version, [&](auto&& visit) {
+      for (size_t i = 0; i < limit && i < entries.size(); ++i) {
+        if (visit(*entries[i])) {
+          return;
+        }
       }
-    }
-    return nullptr;
+    });
   }
 
   void ShutdownAll() {
@@ -146,47 +252,50 @@ struct ModuleGroup::State {
     bool open_ = false;
   };
 
+  /**
+   * Calls visit for each entry a module can see. That is every entry before it, and once the module
+   * is open every other connected entry. Stops when visit returns true.
+   */
+  template <typename Visit>
+  void EachVisible(const Entry& self, bool open, Visit&& visit) {
+    for (const auto& other : entries) {
+      if (other.get() == &self) {
+        if (!open) {
+          break;
+        }
+        continue;
+      }
+      if (open && !other->connected) {
+        continue;
+      }
+      if (visit(*other)) {
+        return;
+      }
+    }
+  }
+
   IInterface* FindFor(const Entry& self, bool open, std::string_view name, u32 version) {
     for (const Served& host : served) {
       if (Matches(host.type, name, version)) {
         return host.iface;
       }
     }
-    for (const auto& other : entries) {
-      if (other.get() == &self) {
-        if (!open) {
-          break;
-        }
-        continue;
-      }
-      if (open && !other->connected) {
-        continue;
-      }
-      if (IInterface* found = Query(*other, name, version)) {
-        return found;
-      }
-    }
-    return nullptr;
+    return Lookup(name, version, [&](auto&& visit) { EachVisible(self, open, visit); });
   }
 
   std::vector<IInterface*> FindAllFor(const Entry& self, bool open, std::string_view name,
                                       u32 version) {
-    std::vector<IInterface*> found;
-    for (const auto& other : entries) {
-      if (other.get() == &self) {
-        if (!open) {
-          break;
+    return Collect(name, version, [&](auto&& visit) { EachVisible(self, open, visit); });
+  }
+
+  std::vector<IInterface*> FindAllEntries(std::string_view name, u32 version) {
+    return Collect(name, version, [&](auto&& visit) {
+      for (const auto& entry : entries) {
+        if (visit(*entry)) {
+          return;
         }
-        continue;
       }
-      if (open && !other->connected) {
-        continue;
-      }
-      if (IInterface* iface = Query(*other, name, version)) {
-        found.push_back(iface);
-      }
-    }
-    return found;
+    });
   }
 
   /**
@@ -371,24 +480,18 @@ ModuleGroup::ModuleGroup() : state_(std::make_unique<State>()) {
       [state](std::string_view name, u32 version) {
         return state->FindBefore(state->entries.size(), name, version, true);
       },
-      [state](std::string_view name, u32 version) {
-        std::vector<IInterface*> found;
-        for (const auto& entry : state->entries) {
-          if (IInterface* iface = Query(*entry, name, version)) {
-            found.push_back(iface);
-          }
-        }
-        return found;
-      });
+      [state](std::string_view name, u32 version) { return state->FindAllEntries(name, version); });
   state_->served.push_back({&REX_SETTINGS(), ISettingsRegistry::kInterface});
   state_->served.push_back({&REX_LOGGER(), ILogger::kInterface});
   state_->served.push_back({&GetProcessSettingsControl(), ISettingsRegistryControl::kInterface});
   state_->served.push_back({&GetProcessLoggerControl(), ILoggerControl::kInterface});
+  state_->RebuildPrivate();
 }
 
 ModuleGroup::~ModuleGroup() {
   state_->ShutdownAll();
   state_->DisconnectAll();
+  state_->private_types.clear();
   while (!state_->entries.empty()) {
     state_->entries.pop_back();
   }
@@ -396,6 +499,7 @@ ModuleGroup::~ModuleGroup() {
 
 void ModuleGroup::Serve(IInterface& iface, InterfaceType type) {
   state_->served.push_back({&iface, type});
+  state_->RebuildPrivate();
 }
 
 Result<void> ModuleGroup::Add(IModule& module) {
@@ -404,7 +508,10 @@ Result<void> ModuleGroup::Add(IModule& module) {
   entry->types = detail::ListServedInterfaces(module);
   entry->label = std::string(module.GetName());
   state_->entries.push_back(std::move(entry));
-  return state_->Settle(state_->entries.size() - 1);
+  state_->RebuildPrivate();
+  Result<void> settled = state_->Settle(state_->entries.size() - 1);
+  state_->RebuildPrivate();
+  return settled;
 }
 
 Result<void> ModuleGroup::Add(std::span<IModule* const> modules) {
@@ -416,7 +523,10 @@ Result<void> ModuleGroup::Add(std::span<IModule* const> modules) {
     entry->label = std::string(module->GetName());
     state_->entries.push_back(std::move(entry));
   }
-  return state_->SettleBatch(first);
+  state_->RebuildPrivate();
+  Result<void> settled = state_->SettleBatch(first);
+  state_->RebuildPrivate();
+  return settled;
 }
 
 size_t ModuleGroup::Mark() const {
@@ -506,7 +616,10 @@ Result<void> ModuleGroup::Load(std::string_view module_name) {
       "module '{}' loaded from '{}', SDK build {}", module_name, file.string(),
       entry->build.empty() ? std::string_view("unknown build") : std::string_view(entry->build));
   state_->entries.push_back(std::move(entry));
-  return state_->Settle(state_->entries.size() - 1);
+  state_->RebuildPrivate();
+  Result<void> settled = state_->Settle(state_->entries.size() - 1);
+  state_->RebuildPrivate();
+  return settled;
 }
 
 Result<void> ModuleGroup::Connect() {
@@ -535,16 +648,10 @@ IInterface* ModuleGroup::Find(std::string_view name, u32 version) {
 }
 
 std::vector<IInterface*> ModuleGroup::FindAll(std::string_view name, u32 version) {
-  std::vector<IInterface*> found;
   if (state_->IsPrivate(name, version)) {
-    return found;
+    return {};
   }
-  for (const auto& entry : state_->entries) {
-    if (IInterface* iface = Query(*entry, name, version)) {
-      found.push_back(iface);
-    }
-  }
-  return found;
+  return state_->FindAllEntries(name, version);
 }
 
 }  // namespace rex

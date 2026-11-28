@@ -29,7 +29,7 @@ endif ()
 
 project(
   ReXGlue
-  VERSION 0.11.0
+  VERSION 0.12.0
   LANGUAGES ${REXGLUE_LANGUAGES}
   DESCRIPTION "Xbox 360 Recompilation SDK"
 )
@@ -46,9 +46,6 @@ set(CMAKE_FOLDER "sdk")
 
 option(REXGLUE_BUILD_TESTS "Build unit tests" ${PROJECT_IS_TOP_LEVEL})
 option(REXGLUE_BUILD_PPC_TESTS "Build PPC instruction tests" OFF)
-option(REXGLUE_REGISTER_PACKAGE "Register the install prefix in the CMake user package registry"
-       OFF
-)
 option(REXGLUE_ENABLE_SANITIZERS "Enable UndefinedBehaviorSanitizer" OFF)
 option(REXGLUE_ENABLE_TSAN "Enable ThreadSanitizer" OFF)
 option(REXGLUE_ENABLE_TRACY "Enable Tracy profiler integration" ON)
@@ -66,8 +63,17 @@ set(REXGLUE_ROOT "${CMAKE_CURRENT_SOURCE_DIR}")
 
 # SDK install support
 include(GNUInstallDirs)
-file(RELATIVE_PATH REXGLUE_LIBDIR_FROM_BINDIR "${CMAKE_INSTALL_FULL_BINDIR}"
-     "${CMAKE_INSTALL_FULL_LIBDIR}"
+# A relative install prefix is relative to the same folder for both, so the result does not change.
+cmake_path(
+  ABSOLUTE_PATH CMAKE_INSTALL_FULL_BINDIR BASE_DIRECTORY "${CMAKE_BINARY_DIR}" OUTPUT_VARIABLE
+  REXGLUE_BINDIR_ABSOLUTE
+)
+cmake_path(
+  ABSOLUTE_PATH CMAKE_INSTALL_FULL_LIBDIR BASE_DIRECTORY "${CMAKE_BINARY_DIR}" OUTPUT_VARIABLE
+  REXGLUE_LIBDIR_ABSOLUTE
+)
+file(RELATIVE_PATH REXGLUE_LIBDIR_FROM_BINDIR "${REXGLUE_BINDIR_ABSOLUTE}"
+     "${REXGLUE_LIBDIR_ABSOLUTE}"
 )
 include(CMakePackageConfigHelpers)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rexglue_target.cmake)
@@ -313,13 +319,15 @@ add_subdirectory(src/rexglue)
 rexglue_group_object_libraries()
 include(cmake/rexglue_sdk.cmake)
 
-# Add tests subdirectory if tests are enabled
+# Add tests subdirectory if tests are enabled. EXCLUDE_FROM_ALL keeps the test targets out of the
+# default target and out of install, and the rexglue_tests target builds them.
 if (REXGLUE_BUILD_TESTS)
   enable_testing()
-  add_subdirectory(tests)
+  add_subdirectory(tests EXCLUDE_FROM_ALL)
 endif ()
 
 include(cmake/rexglue_link_audit.cmake)
+include(cmake/rexglue_third_party.cmake)
 
 # Print configuration summary
 message(STATUS "===========================================")

@@ -12,6 +12,7 @@
 
 #include "../cli_context.h"
 
+#include <filesystem>
 #include <string>
 #include <vector>
 
@@ -29,7 +30,9 @@ using rex::Result;
 [[nodiscard]] Result<void> CodegenFromConfig(const std::string& config_path, const CLIContext& ctx,
                                              const std::vector<std::string>& targets,
                                              bool ignore_stamp = false,
-                                             const rex::codegen::Limits& limits = {});
+                                             const rex::codegen::Limits& limits = {},
+                                             const std::filesystem::path& depfile = {},
+                                             u32 threads = 0);
 
 [[nodiscard]] Result<std::string> DiscoverManifestInCwd();
 
