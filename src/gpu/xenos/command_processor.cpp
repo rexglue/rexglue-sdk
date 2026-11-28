@@ -580,9 +580,9 @@ void CommandProcessor::SyncCoherency() {
   regs_volatile[std::to_underlying(xenos::Register::COHER_STATUS_HOST)] = 0;
 }
 
-void CommandProcessor::PrepareForWait() {}
+void CommandProcessor::PrepareForWait(bool /*is_memory*/, u32 /*address*/, u32 /*attempt*/) {}
 
-void CommandProcessor::ReturnFromWait() {}
+void CommandProcessor::ReturnFromWait(bool /*is_memory*/, u32 /*address*/, u32 /*attempt*/) {}
 
 u32 CommandProcessor::ExecutePrimaryBuffer(u32 read_index, u32 write_index) {
   REX_PROFILE_SCOPE("gpu");
@@ -1009,24 +1009,20 @@ bool CommandProcessor::ExecutePacketType3_WAIT_REG_MEM(memory::RingBuffer* reade
         break;
     }
     if (!matched) {
+      PrepareForWait(is_memory, poll_reg_addr, attempts);
       if (wait >= 0x100) {
-        PrepareForWait();
         if (!graphics_system_->IsVSyncEnabled()) {
           back_off();
         } else {
           rex::platform::SleepFor(std::chrono::milliseconds(wait / 0x100));
         }
         rex::platform::SyncMemory();
-        ReturnFromWait();
-
-        if (!worker_running_) {
-          return false;
-        }
       } else {
         back_off();
-        if (!worker_running_) {
-          return false;
-        }
+      }
+      ReturnFromWait(is_memory, poll_reg_addr, attempts);
+      if (!worker_running_) {
+        return false;
       }
     }
   } while (!matched);
