@@ -213,6 +213,38 @@ REX_TEST_CASE_METHOD(Fixture, "write listener invalidates shared memory", "[gpu]
   CHECK(shared.uploads == 2);
 }
 
+REX_TEST_CASE_METHOD(Fixture, "a watch removed under the lock does not fire", "[gpu][xenos]") {
+  auto& memory = rex::test::GetTestMemory();
+  FakeTitleContext title(memory);
+  TestSharedMemory shared(title);
+  REQUIRE(title.listeners.size() == 1);
+
+  constexpr rex::u32 kStart = 0x10000;
+  constexpr rex::u32 kLength = 0x1000;
+  int fired = 0;
+  const rex::gpu::SharedMemory::WatchCallback callback = [](void* context, void*, rex::u64, bool) {
+    ++*static_cast<int*>(context);
+  };
+  {
+    auto lock = shared.AcquireLock();
+    auto handle = shared.WatchMemoryRange(lock, kStart, kLength, callback, &fired, nullptr, 0);
+    REQUIRE(handle);
+    shared.UnwatchMemoryRange(lock, handle);
+  }
+  title.listeners[0]->OnPhysicalWrite({kStart, kLength}, true);
+  CHECK(fired == 0);
+
+  // A watch left in place fires once, and the range it took from the free list is reused.
+  {
+    auto lock = shared.AcquireLock();
+    REQUIRE(shared.WatchMemoryRange(lock, kStart, kLength, callback, &fired, nullptr, 0));
+  }
+  title.listeners[0]->OnPhysicalWrite({kStart, kLength}, true);
+  CHECK(fired == 1);
+  title.listeners[0]->OnPhysicalWrite({kStart, kLength}, true);
+  CHECK(fired == 1);
+}
+
 REX_TEST_CASE_METHOD(Fixture, "RequestRange uploads the pages RequestRanges uploads for one range",
                      "[gpu][xenos][shared_memory]") {
   auto& memory = rex::test::GetTestMemory();

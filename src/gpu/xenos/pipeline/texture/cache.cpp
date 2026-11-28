@@ -451,11 +451,18 @@ TextureCache::Texture::Texture(TextureCache& texture_cache, const TextureKey& ke
 }
 
 TextureCache::Texture::~Texture() {
-  if (mips_watch_handle_) {
-    GetTextureCache().GetSharedMemory().UnwatchMemoryRange(mips_watch_handle_);
-  }
-  if (base_watch_handle_) {
-    GetTextureCache().GetSharedMemory().UnwatchMemoryRange(base_watch_handle_);
+  {
+    // A guest thread that writes the memory fires the watch, which unlinks its range and clears
+    // the handle under the watch lock. The handles are read under that lock too, so a range that
+    // fired in between is not unlinked a second time.
+    SharedMemory& shared_memory = GetTextureCache().GetSharedMemory();
+    auto lock = shared_memory.AcquireLock();
+    if (mips_watch_handle_) {
+      shared_memory.UnwatchMemoryRange(lock, mips_watch_handle_);
+    }
+    if (base_watch_handle_) {
+      shared_memory.UnwatchMemoryRange(lock, base_watch_handle_);
+    }
   }
 
   if (in_usage_list_) {
