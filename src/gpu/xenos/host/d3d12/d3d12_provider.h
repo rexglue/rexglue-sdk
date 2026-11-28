@@ -87,6 +87,9 @@ class D3D12Provider : public GraphicsProvider {
   D3D12_HEAP_FLAGS GetHeapFlagCreateNotZeroed() const { return heap_flag_create_not_zeroed_; }
   D3D12_PROGRAMMABLE_SAMPLE_POSITIONS_TIER
   GetProgrammableSamplePositionsTier() const { return programmable_sample_positions_tier_; }
+  bool IsIndependentFrontAndBackStencilRefMaskSupported() const {
+    return independent_front_and_back_stencil_ref_mask_supported_;
+  }
   bool IsPSSpecifiedStencilReferenceSupported() const {
     return ps_specified_stencil_reference_supported_;
   }
@@ -165,6 +168,7 @@ class D3D12Provider : public GraphicsProvider {
   D3D12_RESOURCE_BINDING_TIER resource_binding_tier_;
   D3D12_TILED_RESOURCES_TIER tiled_resources_tier_;
   u32 virtual_address_bits_per_resource_;
+  bool independent_front_and_back_stencil_ref_mask_supported_;
   bool ps_specified_stencil_reference_supported_;
   bool rasterizer_ordered_views_supported_;
   bool unaligned_block_textures_supported_;

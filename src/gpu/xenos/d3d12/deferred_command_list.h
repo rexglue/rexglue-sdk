@@ -267,6 +267,18 @@ class DeferredCommandList {
     arg = stencil_ref;
   }
 
+  /**
+   * Sets a stencil reference for each face through ID3D12GraphicsCommandList8, which a device with
+   * D3D12_OPTIONS14 IndependentFrontAndBackStencilRefMaskSupported has. Without that interface,
+   * the front reference is set for both faces.
+   */
+  void D3DOMSetFrontAndBackStencilRef(UINT front_stencil_ref, UINT back_stencil_ref) {
+    auto args = reinterpret_cast<UINT*>(
+        WriteCommand(Command::kD3DOMSetFrontAndBackStencilRef, sizeof(UINT) * 2));
+    args[0] = front_stencil_ref;
+    args[1] = back_stencil_ref;
+  }
+
   void D3DResourceBarrier(UINT num_barriers, const D3D12_RESOURCE_BARRIER* barriers) {
     if (num_barriers == 0) {
       return;
@@ -471,6 +483,7 @@ class DeferredCommandList {
     kD3DOMSetBlendFactor,
     kD3DOMSetRenderTargets,
     kD3DOMSetStencilRef,
+    kD3DOMSetFrontAndBackStencilRef,
     kD3DResourceBarrier,
     kRSSetScissorRect,
     kRSSetViewport,

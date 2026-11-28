@@ -772,9 +772,11 @@ void D3D12CommandProcessor::SetScissorRect(const D3D12_RECT& scissor_rect) {
 }
 
 void D3D12CommandProcessor::SetStencilReference(u32 stencil_ref) {
-  ff_stencil_ref_update_needed_ |= ff_stencil_ref_ != stencil_ref;
+  ff_stencil_ref_update_needed_ |=
+      ff_stencil_ref_ != stencil_ref || ff_stencil_ref_back_ != stencil_ref;
   if (ff_stencil_ref_update_needed_) {
     ff_stencil_ref_ = stencil_ref;
+    ff_stencil_ref_back_ = stencil_ref;
     deferred_command_list_.D3DOMSetStencilRef(stencil_ref);
     ff_stencil_ref_update_needed_ = false;
   }
@@ -3373,20 +3375,35 @@ void D3D12CommandProcessor::UpdateFixedFunctionState(
       ff_blend_factor_update_needed_ = false;
     }
 
-    // No per face reference in Direct3D 12, use the back one only if drawing only back faces.
-    xenos::Register stencil_ref_mask_reg;
-    auto pa_su_sc_mode_cntl = regs.Get<xenos::reg::PA_SU_SC_MODE_CNTL>();
-    if (primitive_polygonal && normalized_depth_control.backface_enable &&
-        pa_su_sc_mode_cntl.cull_front && !pa_su_sc_mode_cntl.cull_back) {
-      stencil_ref_mask_reg = xenos::Register::RB_STENCILREFMASK_BF;
-    } else {
-      stencil_ref_mask_reg = xenos::Register::RB_STENCILREFMASK;
+    // Xenos has a stencil reference for each face. Where the device has them too (D3D12 options
+    // 14), a draw with back faces gets RB_STENCILREFMASK_BF's reference for them, as in the Vulkan
+    // backend. Otherwise there is one reference for both faces, the back one only when drawing
+    // only back faces.
+    u32 stencil_ref =
+        regs.Get<xenos::reg::RB_STENCILREFMASK>(xenos::Register::RB_STENCILREFMASK).stencilref;
+    u32 stencil_ref_back = stencil_ref;
+    if (primitive_polygonal && normalized_depth_control.backface_enable) {
+      stencil_ref_back =
+          regs.Get<xenos::reg::RB_STENCILREFMASK>(xenos::Register::RB_STENCILREFMASK_BF).stencilref;
     }
-    u32 stencil_ref = regs.Get<xenos::reg::RB_STENCILREFMASK>(stencil_ref_mask_reg).stencilref;
-    ff_stencil_ref_update_needed_ |= ff_stencil_ref_ != stencil_ref;
+    if (!GetD3D12Provider().IsIndependentFrontAndBackStencilRefMaskSupported()) {
+      auto pa_su_sc_mode_cntl = regs.Get<xenos::reg::PA_SU_SC_MODE_CNTL>();
+      if (pa_su_sc_mode_cntl.cull_front && !pa_su_sc_mode_cntl.cull_back) {
+        stencil_ref = stencil_ref_back;
+      }
+      stencil_ref_back = stencil_ref;
+    }
+    ff_stencil_ref_update_needed_ |=
+        ff_stencil_ref_ != stencil_ref || ff_stencil_ref_back_ != stencil_ref_back;
     if (ff_stencil_ref_update_needed_) {
       ff_stencil_ref_ = stencil_ref;
-      deferred_command_list_.D3DOMSetStencilRef(ff_stencil_ref_);
+      ff_stencil_ref_back_ = stencil_ref_back;
+      if (stencil_ref == stencil_ref_back) {
+        deferred_command_list_.D3DOMSetStencilRef(ff_stencil_ref_);
+      } else {
+        deferred_command_list_.D3DOMSetFrontAndBackStencilRef(ff_stencil_ref_,
+                                                              ff_stencil_ref_back_);
+      }
       ff_stencil_ref_update_needed_ = false;
     }
   }
