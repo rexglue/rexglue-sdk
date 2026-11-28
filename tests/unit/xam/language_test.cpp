@@ -68,10 +68,13 @@ class BootedRuntime {
 
   rex::kernel::TitleRuntime& GetRuntime() { return *runtime_; }
 
-  u32 CallXGetLanguage() {
+  u32 CallXGetLanguage() { return CallExport("XGetLanguage"); }
+
+  u32 CallXamGetLanguage() { return CallExport("XamGetLanguage"); }
+
+  u32 CallExport(std::string_view name) {
     const auto table = rex::kernel::GetExports(rex::kernel::ExportModule::kXAM);
-    const auto it =
-        std::ranges::find(table, std::string_view("XGetLanguage"), &rex::kernel::ExportEntry::name);
+    const auto it = std::ranges::find(table, name, &rex::kernel::ExportEntry::name);
     REQUIRE(it != table.end());
     REQUIRE(it->fn);
     PPCContext& ctx = *state_->GetContext();
@@ -249,6 +252,17 @@ REX_TEST_CASE_METHOD(Fixture,
     BootedRuntime booted(id);
     CHECK(booted.GetRuntime().GetUserLanguage() == static_cast<XLanguage>(id));
     CHECK(booted.CallXGetLanguage() == id);
+  }
+}
+
+REX_TEST_CASE_METHOD(Fixture, "Language: XamGetLanguage returns the language XGetLanguage returns",
+                     "[xam][language]") {
+  for (u32 id = 1; id < static_cast<u32>(rex::kernel::XLanguage::kMaxLanguages); ++id) {
+    INFO(id);
+    { rex::test::ReleaseTestMemory(); }
+    BootedRuntime booted(id);
+    CHECK(booted.CallXamGetLanguage() == id);
+    CHECK(booted.CallXamGetLanguage() == booted.CallXGetLanguage());
   }
 }
 

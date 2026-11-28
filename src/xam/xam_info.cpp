@@ -211,6 +211,14 @@ u32 XGetLanguage_entry() {
   return static_cast<u32>(CurrentXAM().GetUserLanguage());
 }
 
+/**
+ * The console language, the same value XGetLanguage returns. Titles that ask XAM directly read it
+ * here, and the stub's 0 is not a language.
+ */
+u32 XamGetLanguage_entry() {
+  return static_cast<u32>(CurrentXAM().GetUserLanguage());
+}
+
 u32 XamGetCurrentTitleId_entry() {
   auto module = CurrentTitle().objects.Get<kernel::ILoadedModule>(
       CurrentTitle().modules.GetExecutable().value_or(0));
@@ -440,6 +448,7 @@ REX_XAM_BODY(__imp__XCustomRegisterDynamicActions, rex::xam::XCustomRegisterDyna
 REX_XAM_BODY(__imp__XGetAVPack, rex::xam::XGetAVPack_entry)
 REX_XAM_BODY(__imp__XGetGameRegion, rex::xam::XGetGameRegion_entry)
 REX_XAM_BODY(__imp__XGetLanguage, rex::xam::XGetLanguage_entry)
+REX_XAM_BODY(__imp__XamGetLanguage, rex::xam::XamGetLanguage_entry)
 REX_XAM_BODY(__imp__XamGetCurrentTitleId, rex::xam::XamGetCurrentTitleId_entry)
 REX_XAM_BODY(__imp__XamGetExecutionId, rex::xam::XamGetExecutionId_entry)
 REX_XAM_BODY(__imp__XamLoaderSetLaunchData, rex::xam::XamLoaderSetLaunchData_entry)

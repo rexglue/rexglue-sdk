@@ -1120,7 +1120,6 @@ REX_EXPORT_STUB(__imp__XamFormatMessage);
 REX_EXPORT_STUB(__imp__XamFormatSystemDateString);
 REX_EXPORT_STUB(__imp__XamGetCountry);
 REX_EXPORT_STUB(__imp__XamGetCurrencyFormat);
-REX_EXPORT_STUB(__imp__XamGetLanguage);
 REX_EXPORT_STUB(__imp__XamGetLanguageLocaleFallbackString);
 REX_EXPORT_STUB(__imp__XamGetLanguageTypeface);
 REX_EXPORT_STUB(__imp__XamGetLanguageTypefacePatch);
